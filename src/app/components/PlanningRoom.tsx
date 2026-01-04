@@ -1,6 +1,15 @@
-import { Check, Eye, EyeOff, LogOut, RotateCcw, Share2 } from 'lucide-react';
+import {
+  BarChart3,
+  Check,
+  Eye,
+  EyeOff,
+  LogOut,
+  RotateCcw,
+  Share2,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useAdminAuth } from '../lib/adminAuth';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
@@ -43,6 +52,7 @@ export function PlanningRoom({
   isVoting = false,
 }: PlanningRoomProps) {
   const [shareUrlCopied, setShareUrlCopied] = useState(false);
+  const { adminUser, isLoading: authLoading } = useAdminAuth();
 
   const handleShareUrl = async () => {
     try {
@@ -98,10 +108,39 @@ export function PlanningRoom({
               </Button>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={onLeave}>
-            <LogOut className="size-4 mr-2" />
-            Leave
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Admin Section */}
+            {!authLoading && adminUser && (
+              <div className="flex items-center gap-2">
+                {adminUser.photoURL && (
+                  <img
+                    src={adminUser.photoURL}
+                    alt={adminUser.displayName || 'Admin'}
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+                <div className="hidden sm:block text-sm">
+                  <p className="font-medium text-xs">
+                    {adminUser.displayName || adminUser.email}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" asChild>
+                  <a
+                    href="/analytics"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <BarChart3 className="size-4 mr-2" />
+                    Analytics
+                  </a>
+                </Button>
+              </div>
+            )}
+            <Button variant="outline" size="sm" onClick={onLeave}>
+              <LogOut className="size-4 mr-2" />
+              Leave
+            </Button>
+          </div>
         </div>
 
         {/* Status Bar - Fixed height */}
