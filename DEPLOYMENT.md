@@ -32,7 +32,15 @@ This guide covers deploying the Planning Poker app to Netlify with Neon PostgreS
 3. Create a `.env` file in the root directory:
    ```env
    DATABASE_URL=postgresql://user:password@host.neon.tech/dbname?sslmode=require
+   VITE_ABLY_API_KEY=your-ably-api-key-here
+   ABLY_API_KEY=your-ably-api-key-here
    ```
+   
+   **Getting Ably API Key:**
+   - Sign up at [ably.com](https://ably.com) (free tier available)
+   - Create a new app
+   - Copy your API key from the dashboard
+   - Use the same key for both `VITE_ABLY_API_KEY` (client) and `ABLY_API_KEY` (server)
 
 4. Run the development server:
    ```bash
@@ -54,9 +62,11 @@ This guide covers deploying the Planning Poker app to Netlify with Neon PostgreS
 4. Configure build settings:
    - **Build command**: `npm run build`
    - **Publish directory**: `dist`
-5. Add environment variable:
+5. Add environment variables:
    - Go to Site settings → Environment variables
    - Add `DATABASE_URL` with your Neon connection string
+   - Add `VITE_ABLY_API_KEY` with your Ably API key (for client-side)
+   - Add `ABLY_API_KEY` with your Ably API key (for server-side)
 6. Click "Deploy site"
 
 #### Option B: Deploy via Netlify CLI
@@ -83,6 +93,10 @@ This guide covers deploying the Planning Poker app to Netlify with Neon PostgreS
 Required environment variables:
 
 - `DATABASE_URL` - Your Neon PostgreSQL connection string
+- `VITE_ABLY_API_KEY` - Ably API key for client-side real-time subscriptions
+- `ABLY_API_KEY` - Ably API key for server-side publishing (Netlify Functions)
+
+**Note**: Ably is optional. If not configured, the app will fall back to polling. However, for production use, Ably is recommended for true real-time updates.
 
 Set these in:
 - **Local development**: `.env` file (not committed to git)

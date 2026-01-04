@@ -11,7 +11,7 @@ A real-time multiplayer Planning Poker application for agile estimation sessions
 - 📊 Calculate average of numeric votes
 - 🔄 Reset rounds for new estimations
 - 📱 Responsive design for mobile and desktop
-- ⚡ Real-time updates via polling (every 2 seconds)
+- ⚡ Real-time updates via Ably WebSocket (true real-time) with polling fallback
 - 💾 Persistent sessions via localStorage
 
 ## Tech Stack
@@ -19,6 +19,7 @@ A real-time multiplayer Planning Poker application for agile estimation sessions
 - **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
 - **Backend**: Netlify Serverless Functions
 - **Database**: Neon PostgreSQL
+- **Realtime**: Ably (WebSocket pub/sub)
 - **Deployment**: Netlify
 
 ## Quick Start
@@ -47,10 +48,16 @@ A real-time multiplayer Planning Poker application for agile estimation sessions
    cp .env.example .env
    ```
    
-   Edit `.env` and add your Neon database connection string:
+   Edit `.env` and add your configuration:
    ```env
    DATABASE_URL=postgresql://user:password@host.neon.tech/dbname?sslmode=require
+   VITE_ABLY_API_KEY=your-ably-api-key-here
+   ABLY_API_KEY=your-ably-api-key-here
    ```
+   
+   **Getting Ably API Key:**
+   - Sign up at [ably.com](https://ably.com) (free tier: 6M messages/month)
+   - Create a new app and copy your API key
 
 4. Start development server:
    ```bash
@@ -89,6 +96,10 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions to Net
 ## Environment Variables
 
 - `DATABASE_URL` - Neon PostgreSQL connection string (required)
+- `VITE_ABLY_API_KEY` - Ably API key for client-side (required for real-time)
+- `ABLY_API_KEY` - Ably API key for server-side (required for real-time)
+
+**Note**: Ably is optional but recommended. Without it, the app falls back to polling.
 
 ## Security
 

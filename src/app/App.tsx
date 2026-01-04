@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { HomePage } from './components/HomePage';
-import { PlanningRoom, Player } from './components/PlanningRoom';
-import { Toaster } from './components/ui/sonner';
-import { toast } from 'sonner';
-import * as api from './lib/api';
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { HomePage } from "./components/HomePage";
+import { PlanningRoom, Player } from "./components/PlanningRoom";
+import { Toaster } from "./components/ui/sonner";
+import * as api from "./lib/api";
+import { subscribeToRoom, unsubscribeAll } from "./lib/realtime";
 
 interface Room {
   code: string;
@@ -31,42 +32,45 @@ export default function App() {
   useEffect(() => {
     const urlPath = window.location.pathname;
     const roomCodeMatch = urlPath.match(/^\/room\/([A-Z0-9]{6})$/i);
-    
+
     if (roomCodeMatch) {
       const roomCode = roomCodeMatch[1].toUpperCase();
       // Check if we have a saved player ID for this room
-      const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
-      const savedRoomCode = localStorage.getItem('planningPokerRoom');
-      
+      const savedPlayerId = localStorage.getItem("planningPokerPlayerId");
+      const savedRoomCode = localStorage.getItem("planningPokerRoom");
+
       if (savedPlayerId && savedRoomCode === roomCode) {
         // We have a saved session for this room
         setCurrentRoom(roomCode);
         setCurrentPlayerId(savedPlayerId);
         setIsLoading(true);
-        api.getRoom(roomCode)
-          .then(room => {
-            const playerExists = room.players.some(p => p.id === savedPlayerId);
+        api
+          .getRoom(roomCode)
+          .then((room) => {
+            const playerExists = room.players.some(
+              (p) => p.id === savedPlayerId
+            );
             if (playerExists) {
               setRoomData(room);
             } else {
               // Player not in room, clear saved data
-              console.log('Player no longer in saved room, clearing session');
-              localStorage.removeItem('planningPokerRoom');
-              localStorage.removeItem('planningPokerPlayerId');
+              console.log("Player no longer in saved room, clearing session");
+              localStorage.removeItem("planningPokerRoom");
+              localStorage.removeItem("planningPokerPlayerId");
               setCurrentRoom(null);
               setCurrentPlayerId(null);
               // Update URL to home
-              window.history.replaceState({}, '', '/');
+              window.history.replaceState({}, "", "/");
             }
             setIsLoading(false);
           })
-          .catch(err => {
-            console.log('Saved room not found, clearing session');
-            localStorage.removeItem('planningPokerRoom');
-            localStorage.removeItem('planningPokerPlayerId');
+          .catch((err) => {
+            console.log("Saved room not found, clearing session");
+            localStorage.removeItem("planningPokerRoom");
+            localStorage.removeItem("planningPokerPlayerId");
             setCurrentRoom(null);
             setCurrentPlayerId(null);
-            window.history.replaceState({}, '', '/');
+            window.history.replaceState({}, "", "/");
             setIsLoading(false);
           });
       } else {
@@ -77,41 +81,44 @@ export default function App() {
       }
     } else {
       // No room code in URL, check localStorage
-      const savedRoomCode = localStorage.getItem('planningPokerRoom');
-      const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
+      const savedRoomCode = localStorage.getItem("planningPokerRoom");
+      const savedPlayerId = localStorage.getItem("planningPokerPlayerId");
 
       if (savedRoomCode && savedPlayerId) {
         setCurrentRoom(savedRoomCode);
         setCurrentPlayerId(savedPlayerId);
         setIsLoading(true);
         // Update URL to match saved room
-        window.history.replaceState({}, '', `/room/${savedRoomCode}`);
+        window.history.replaceState({}, "", `/room/${savedRoomCode}`);
         // Try to fetch the room data
-        api.getRoom(savedRoomCode)
-          .then(room => {
+        api
+          .getRoom(savedRoomCode)
+          .then((room) => {
             // Check if the player still exists in the room
-            const playerExists = room.players.some(p => p.id === savedPlayerId);
+            const playerExists = room.players.some(
+              (p) => p.id === savedPlayerId
+            );
             if (playerExists) {
               setRoomData(room);
             } else {
               // Player not in room, clear saved data
-              console.log('Player no longer in saved room, clearing session');
-              localStorage.removeItem('planningPokerRoom');
-              localStorage.removeItem('planningPokerPlayerId');
+              console.log("Player no longer in saved room, clearing session");
+              localStorage.removeItem("planningPokerRoom");
+              localStorage.removeItem("planningPokerPlayerId");
               setCurrentRoom(null);
               setCurrentPlayerId(null);
-              window.history.replaceState({}, '', '/');
+              window.history.replaceState({}, "", "/");
             }
             setIsLoading(false);
           })
-          .catch(err => {
-            console.log('Saved room not found, clearing session');
+          .catch((err) => {
+            console.log("Saved room not found, clearing session");
             // Clear invalid saved data - don't show error toast as this is expected
-            localStorage.removeItem('planningPokerRoom');
-            localStorage.removeItem('planningPokerPlayerId');
+            localStorage.removeItem("planningPokerRoom");
+            localStorage.removeItem("planningPokerPlayerId");
             setCurrentRoom(null);
             setCurrentPlayerId(null);
-            window.history.replaceState({}, '', '/');
+            window.history.replaceState({}, "", "/");
             setIsLoading(false);
           });
       }
@@ -123,42 +130,45 @@ export default function App() {
     const handlePopState = () => {
       const urlPath = window.location.pathname;
       const roomCodeMatch = urlPath.match(/^\/room\/([A-Z0-9]{6})$/i);
-      
+
       if (!roomCodeMatch) {
         // Navigated to home, clear room state
         setCurrentRoom(null);
         setCurrentPlayerId(null);
         setRoomData(null);
-        localStorage.removeItem('planningPokerRoom');
-        localStorage.removeItem('planningPokerPlayerId');
+        localStorage.removeItem("planningPokerRoom");
+        localStorage.removeItem("planningPokerPlayerId");
       } else {
         // Navigated to a room URL, try to restore session
         const roomCode = roomCodeMatch[1].toUpperCase();
-        const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
-        const savedRoomCode = localStorage.getItem('planningPokerRoom');
-        
+        const savedPlayerId = localStorage.getItem("planningPokerPlayerId");
+        const savedRoomCode = localStorage.getItem("planningPokerRoom");
+
         if (savedPlayerId && savedRoomCode === roomCode) {
           setCurrentRoom(roomCode);
           setCurrentPlayerId(savedPlayerId);
           setIsLoading(true);
-          api.getRoom(roomCode)
-            .then(room => {
-              const playerExists = room.players.some(p => p.id === savedPlayerId);
+          api
+            .getRoom(roomCode)
+            .then((room) => {
+              const playerExists = room.players.some(
+                (p) => p.id === savedPlayerId
+              );
               if (playerExists) {
                 setRoomData(room);
               } else {
                 setCurrentRoom(null);
                 setCurrentPlayerId(null);
-                localStorage.removeItem('planningPokerRoom');
-                localStorage.removeItem('planningPokerPlayerId');
+                localStorage.removeItem("planningPokerRoom");
+                localStorage.removeItem("planningPokerPlayerId");
               }
               setIsLoading(false);
             })
             .catch(() => {
               setCurrentRoom(null);
               setCurrentPlayerId(null);
-              localStorage.removeItem('planningPokerRoom');
-              localStorage.removeItem('planningPokerPlayerId');
+              localStorage.removeItem("planningPokerRoom");
+              localStorage.removeItem("planningPokerPlayerId");
               setIsLoading(false);
             });
         } else {
@@ -169,48 +179,93 @@ export default function App() {
       }
     };
 
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  // Poll for room updates when in a room
+  // Subscribe to real-time room updates via Ably
   useEffect(() => {
-    if (!currentRoom || !currentPlayerId) return;
+    if (!currentRoom || !currentPlayerId) {
+      // Unsubscribe when leaving room
+      unsubscribeAll();
+      return;
+    }
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const room = await api.getRoom(currentRoom);
-        
+    // First, fetch initial room state
+    api
+      .getRoom(currentRoom)
+      .then((room) => {
         // Check if current player still exists in the room
-        const playerExists = room.players.some(p => p.id === currentPlayerId);
+        const playerExists = room.players.some((p) => p.id === currentPlayerId);
         if (!playerExists) {
-          console.log('Player removed from room');
-          clearInterval(pollInterval);
+          console.log("Player removed from room");
           setCurrentRoom(null);
           setCurrentPlayerId(null);
           setRoomData(null);
-          localStorage.removeItem('planningPokerRoom');
-          localStorage.removeItem('planningPokerPlayerId');
-          window.history.replaceState({}, '', '/');
-          toast.info('You have been removed from the room');
+          localStorage.removeItem("planningPokerRoom");
+          localStorage.removeItem("planningPokerPlayerId");
+          window.history.replaceState({}, "", "/");
+          toast.info("You have been removed from the room");
           return;
         }
-        
         setRoomData(room);
-      } catch (err) {
-        console.log('Room no longer exists or polling failed');
-        // Room probably doesn't exist anymore, stop polling and return to home
-        clearInterval(pollInterval);
-        setCurrentRoom(null);
-        setCurrentPlayerId(null);
-        setRoomData(null);
-        localStorage.removeItem('planningPokerRoom');
-        localStorage.removeItem('planningPokerPlayerId');
-        window.history.replaceState({}, '', '/');
-      }
-    }, 2000); // Poll every 2 seconds
+      })
+      .catch((err) => {
+        console.error("Failed to fetch initial room state:", err);
+        // Don't kick user out on initial fetch failure - Ably will handle updates
+      });
 
-    return () => clearInterval(pollInterval);
+    // Subscribe to real-time updates
+    try {
+      const unsubscribe = subscribeToRoom(currentRoom, (room) => {
+        // Check if current player still exists in the room
+        const playerExists = room.players.some((p) => p.id === currentPlayerId);
+        if (!playerExists) {
+          console.log("Player removed from room");
+          setCurrentRoom(null);
+          setCurrentPlayerId(null);
+          setRoomData(null);
+          localStorage.removeItem("planningPokerRoom");
+          localStorage.removeItem("planningPokerPlayerId");
+          window.history.replaceState({}, "", "/");
+          toast.info("You have been removed from the room");
+          return;
+        }
+        setRoomData(room);
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    } catch (error) {
+      console.error("Failed to subscribe to room updates:", error);
+      toast.error("Real-time updates unavailable. Please refresh the page.");
+      // Fallback to polling if Ably fails
+      const pollInterval = setInterval(async () => {
+        try {
+          const room = await api.getRoom(currentRoom);
+          const playerExists = room.players.some(
+            (p) => p.id === currentPlayerId
+          );
+          if (!playerExists) {
+            clearInterval(pollInterval);
+            setCurrentRoom(null);
+            setCurrentPlayerId(null);
+            setRoomData(null);
+            localStorage.removeItem("planningPokerRoom");
+            localStorage.removeItem("planningPokerPlayerId");
+            window.history.replaceState({}, "", "/");
+            toast.info("You have been removed from the room");
+            return;
+          }
+          setRoomData(room);
+        } catch (err) {
+          console.error("Polling fallback failed:", err);
+        }
+      }, 3000);
+
+      return () => clearInterval(pollInterval);
+    }
   }, [currentRoom, currentPlayerId]);
 
   const handleCreateRoom = async (playerName: string) => {
@@ -218,21 +273,21 @@ export default function App() {
     try {
       const playerId = generatePlayerId();
       const room = await api.createRoom(playerName, playerId);
-      
+
       setCurrentRoom(room.code);
       setCurrentPlayerId(playerId);
       setRoomData(room);
-      
-      localStorage.setItem('planningPokerRoom', room.code);
-      localStorage.setItem('planningPokerPlayerId', playerId);
-      
+
+      localStorage.setItem("planningPokerRoom", room.code);
+      localStorage.setItem("planningPokerPlayerId", playerId);
+
       // Update URL
-      window.history.pushState({}, '', `/room/${room.code}`);
-      
-      toast.success('Room created successfully!');
+      window.history.pushState({}, "", `/room/${room.code}`);
+
+      toast.success("Room created successfully!");
     } catch (err) {
-      console.error('Failed to create room:', err);
-      toast.error('Failed to create room. Please try again.');
+      console.error("Failed to create room:", err);
+      toast.error("Failed to create room. Please try again.");
     } finally {
       setIsCreatingRoom(false);
     }
@@ -247,17 +302,17 @@ export default function App() {
       setCurrentRoom(room.code);
       setCurrentPlayerId(playerId);
       setRoomData(room);
-      
-      localStorage.setItem('planningPokerRoom', room.code);
-      localStorage.setItem('planningPokerPlayerId', playerId);
-      
+
+      localStorage.setItem("planningPokerRoom", room.code);
+      localStorage.setItem("planningPokerPlayerId", playerId);
+
       // Update URL
-      window.history.pushState({}, '', `/room/${room.code}`);
-      
-      toast.success('Joined room successfully!');
+      window.history.pushState({}, "", `/room/${room.code}`);
+
+      toast.success("Joined room successfully!");
     } catch (err) {
-      console.error('Failed to join room:', err);
-      toast.error('Failed to join room. Please try again.');
+      console.error("Failed to join room:", err);
+      toast.error("Failed to join room. Please try again.");
     } finally {
       setIsJoiningRoom(false);
     }
@@ -268,11 +323,11 @@ export default function App() {
 
     setIsVoting(true);
     try {
-      const room = await api.submitVote(currentRoom, currentPlayerId, value);
-      setRoomData(room);
+      // Room data will be updated via Ably subscription
+      await api.submitVote(currentRoom, currentPlayerId, value);
     } catch (err) {
-      console.error('Failed to submit vote:', err);
-      toast.error('Failed to submit vote. Please try again.');
+      console.error("Failed to submit vote:", err);
+      toast.error("Failed to submit vote. Please try again.");
     } finally {
       setIsVoting(false);
     }
@@ -283,12 +338,12 @@ export default function App() {
 
     setIsRevealing(true);
     try {
-      const room = await api.revealVotes(currentRoom);
-      setRoomData(room);
-      toast.success('Votes revealed!');
+      // Room data will be updated via Ably subscription
+      await api.revealVotes(currentRoom);
+      toast.success("Votes revealed!");
     } catch (err) {
-      console.error('Failed to reveal votes:', err);
-      toast.error('Failed to reveal votes. Please try again.');
+      console.error("Failed to reveal votes:", err);
+      toast.error("Failed to reveal votes. Please try again.");
     } finally {
       setIsRevealing(false);
     }
@@ -299,12 +354,12 @@ export default function App() {
 
     setIsResetting(true);
     try {
-      const room = await api.resetRound(currentRoom);
-      setRoomData(room);
-      toast.success('Round reset!');
+      // Room data will be updated via Ably subscription
+      await api.resetRound(currentRoom);
+      toast.success("Round reset!");
     } catch (err) {
-      console.error('Failed to reset round:', err);
-      toast.error('Failed to reset round. Please try again.');
+      console.error("Failed to reset round:", err);
+      toast.error("Failed to reset round. Please try again.");
     } finally {
       setIsResetting(false);
     }
@@ -315,25 +370,28 @@ export default function App() {
 
     try {
       await api.leaveRoom(currentRoom, currentPlayerId);
-      
+
+      // Unsubscribe from room updates
+      unsubscribeAll();
+
       setCurrentRoom(null);
       setCurrentPlayerId(null);
       setRoomData(null);
-      
-      localStorage.removeItem('planningPokerRoom');
-      localStorage.removeItem('planningPokerPlayerId');
-      
+
+      localStorage.removeItem("planningPokerRoom");
+      localStorage.removeItem("planningPokerPlayerId");
+
       // Update URL to home
-      window.history.pushState({}, '', '/');
-      
-      toast.success('Left room successfully!');
+      window.history.pushState({}, "", "/");
+
+      toast.success("Left room successfully!");
     } catch (err) {
-      console.error('Failed to leave room:', err);
-      toast.error('Failed to leave room. Please try again.');
+      console.error("Failed to leave room:", err);
+      toast.error("Failed to leave room. Please try again.");
     }
   };
 
-  const currentPlayer = roomData?.players.find(p => p.id === currentPlayerId);
+  const currentPlayer = roomData?.players.find((p) => p.id === currentPlayerId);
 
   if (isLoading) {
     return (
@@ -357,8 +415,8 @@ export default function App() {
   if (!currentRoom || !currentPlayer || !roomData) {
     return (
       <>
-        <HomePage 
-          onCreateRoom={handleCreateRoom} 
+        <HomePage
+          onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
           isCreatingRoom={isCreatingRoom}
           isJoiningRoom={isJoiningRoom}

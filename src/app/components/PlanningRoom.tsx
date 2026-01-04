@@ -73,10 +73,10 @@ export function PlanningRoom({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pb-24 sm:pb-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-100 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 max-w-6xl mx-auto w-full p-4 sm:p-6">
+        {/* Header - Fixed height */}
+        <div className="flex-shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 mb-4 sm:mb-6">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl sm:text-3xl">🎴 Planning Poker</h1>
             <div className="flex items-center gap-2">
@@ -104,8 +104,8 @@ export function PlanningRoom({
           </Button>
         </div>
 
-        {/* Status Bar */}
-        <Card className="mb-6">
+        {/* Status Bar - Fixed height */}
+        <Card className="flex-shrink-0 mb-4 sm:mb-6">
           <CardContent className="py-4">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3 flex-wrap">
@@ -171,73 +171,82 @@ export function PlanningRoom({
           </CardContent>
         </Card>
 
-        {/* Players Grid */}
-        <div className="mb-6">
-          <h2 className="mb-4 text-lg sm:text-xl font-semibold">Players</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {players.map((player) => (
-              <Card
-                key={player.id}
-                className={`${
-                  player.id === currentPlayer.id ? "ring-2 ring-blue-500" : ""
-                }`}
-              >
-                <CardContent className="p-3 sm:p-4 text-center">
-                  <div className="mb-2 truncate text-sm sm:text-base">
-                    {player.name}
-                    {player.id === currentPlayer.id && (
-                      <span className="text-blue-500"> (You)</span>
-                    )}
-                  </div>
-                  <div className="relative">
-                    {player.isObserver ? (
-                      <div className="h-16 sm:h-20 flex items-center justify-center text-gray-400 text-xs sm:text-sm">
-                        Observer
+        {/* Main Content Area - Flexible, scrollable */}
+        <div className="flex-1 flex flex-col min-h-0 gap-4 sm:gap-6">
+          {/* Players Grid - Scrollable */}
+          <div className="flex-1 min-h-0 flex flex-col">
+            <h2 className="mb-3 sm:mb-4 text-lg sm:text-xl font-semibold flex-shrink-0">
+              Players
+            </h2>
+            <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 pb-2">
+                {players.map((player) => (
+                  <Card
+                    key={player.id}
+                    className={`${
+                      player.id === currentPlayer.id ? "ring-2 ring-blue-500" : ""
+                    }`}
+                  >
+                    <CardContent className="p-3 sm:p-4 text-center">
+                      <div className="mb-2 truncate text-sm sm:text-base">
+                        {player.name}
+                        {player.id === currentPlayer.id && (
+                          <span className="text-blue-500"> (You)</span>
+                        )}
                       </div>
-                    ) : (
-                      <div
-                        className={`h-16 sm:h-20 flex items-center justify-center rounded-lg text-xl sm:text-2xl transition-all ${
-                          player.vote
-                            ? revealed
-                              ? "bg-blue-500 text-white"
-                              : "bg-green-500 text-white"
-                            : "bg-gray-200 text-gray-400"
-                        }`}
-                      >
-                        {player.vote ? (revealed ? player.vote : "✓") : "—"}
+                      <div className="relative">
+                        {player.isObserver ? (
+                          <div className="h-16 sm:h-20 flex items-center justify-center text-gray-400 text-xs sm:text-sm">
+                            Observer
+                          </div>
+                        ) : (
+                          <div
+                            className={`h-16 sm:h-20 flex items-center justify-center rounded-lg text-xl sm:text-2xl transition-all ${
+                              player.vote
+                                ? revealed
+                                  ? "bg-blue-500 text-white"
+                                  : "bg-green-500 text-white"
+                                : "bg-gray-200 text-gray-400"
+                            }`}
+                          >
+                            {player.vote ? (revealed ? player.vote : "✓") : "—"}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Voting Cards - Sticky on mobile for better UX */}
-        <div className="sticky bottom-0 bg-gradient-to-br from-blue-50 to-indigo-100 -mx-4 px-4 pt-4 pb-4 sm:pb-0 sm:relative sm:mx-0 sm:bg-transparent border-t border-gray-200 sm:border-t-0">
-          <h2 className="mb-4 text-lg sm:text-xl font-semibold">Your Cards</h2>
-          <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 sm:gap-3 pb-safe sm:pb-0">
-            {CARD_VALUES.map((value) => (
-              <button
-                key={value}
-                onClick={() =>
-                  onVote(currentPlayer.vote === value ? null : value)
-                }
-                disabled={revealed || currentPlayer.isObserver || isVoting}
-                className={`aspect-[2/3] rounded-lg text-lg sm:text-xl md:text-2xl transition-all ${
-                  currentPlayer.vote === value
-                    ? "bg-blue-500 text-white scale-105 shadow-lg"
-                    : "bg-white hover:bg-blue-50 hover:scale-105 shadow"
-                } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
-              >
-                {isVoting && currentPlayer.vote === value ? (
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-current mx-auto"></div>
-                ) : (
-                  value
-                )}
-              </button>
-            ))}
+          {/* Voting Cards - Always visible, fixed at bottom */}
+          <div className="flex-shrink-0 border-t border-gray-200 pt-4 sm:pt-6 bg-gradient-to-br from-blue-50 to-indigo-100 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-safe">
+            <h2 className="mb-3 sm:mb-4 text-lg sm:text-xl font-semibold">
+              Your Cards
+            </h2>
+            <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 sm:gap-3">
+              {CARD_VALUES.map((value) => (
+                <button
+                  key={value}
+                  onClick={() =>
+                    onVote(currentPlayer.vote === value ? null : value)
+                  }
+                  disabled={revealed || currentPlayer.isObserver || isVoting}
+                  className={`aspect-[2/3] rounded-lg text-lg sm:text-xl md:text-2xl transition-all ${
+                    currentPlayer.vote === value
+                      ? "bg-blue-500 text-white scale-105 shadow-lg"
+                      : "bg-white hover:bg-blue-50 hover:scale-105 shadow"
+                  } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
+                >
+                  {isVoting && currentPlayer.vote === value ? (
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-current mx-auto"></div>
+                  ) : (
+                    value
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

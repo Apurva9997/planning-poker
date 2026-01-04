@@ -6,6 +6,7 @@
  */
 
 import type { Handler, HandlerEvent } from "@netlify/functions";
+import Ably from "ably";
 import * as db from "./db";
 
 interface Player {
@@ -74,6 +75,43 @@ function errorResponse(message: string, statusCode: number = 400) {
   return jsonResponse({ error: message }, statusCode);
 }
 
+// Ably client for real-time updates
+let ablyClient: Ably.Rest | null = null;
+
+function getAblyClient(): Ably.Rest | null {
+  const apiKey = process.env.ABLY_API_KEY;
+
+  if (!apiKey) {
+    // Ably is optional - log warning but don't fail
+    if (!ablyClient) {
+      console.warn("ABLY_API_KEY not set - real-time updates disabled");
+    }
+    return null;
+  }
+
+  if (!ablyClient) {
+    ablyClient = new Ably.Rest({ key: apiKey });
+  }
+
+  return ablyClient;
+}
+
+// Publish room update to Ably channel
+async function publishRoomUpdate(roomCode: string, room: Room): Promise<void> {
+  try {
+    const client = getAblyClient();
+    if (!client) {
+      return; // Ably not configured, skip publishing
+    }
+
+    const channel = client.channels.get(`room:${roomCode}`);
+    await channel.publish("room-update", room);
+  } catch (error) {
+    // Don't fail the request if Ably publish fails
+    console.error("Failed to publish room update to Ably:", error);
+  }
+}
+
 const handler: Handler = async (event: HandlerEvent) => {
   // Handle CORS preflight
   if (event.httpMethod === "OPTIONS") {
@@ -135,6 +173,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
 
       await db.set(`room:${roomCode}`, newRoom);
+      await publishRoomUpdate(roomCode, newRoom);
       return jsonResponse({ room: newRoom });
     }
 
@@ -170,6 +209,7 @@ const handler: Handler = async (event: HandlerEvent) => {
         };
 
         await db.set(`room:${roomCode.toUpperCase()}`, newRoom);
+        await publishRoomUpdate(roomCode.toUpperCase(), newRoom);
         return jsonResponse({ room: newRoom });
       }
 
@@ -199,6 +239,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       }
 
       await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
       return jsonResponse({ room });
     }
 
@@ -262,6 +303,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       room.players[playerIndex].lastSeen = Date.now();
 
       await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
       return jsonResponse({ room });
     }
 
@@ -281,6 +323,7 @@ const handler: Handler = async (event: HandlerEvent) => {
 
       room.revealed = true;
       await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
 
       return jsonResponse({ room });
     }
@@ -303,6 +346,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       room.revealed = false;
 
       await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
       return jsonResponse({ room });
     }
 
@@ -325,8 +369,11 @@ const handler: Handler = async (event: HandlerEvent) => {
       // Delete room if empty
       if (room.players.length === 0) {
         await db.del(`room:${roomCode}`);
+        // Publish empty room update before deletion
+        await publishRoomUpdate(roomCode, room);
       } else {
         await db.set(`room:${roomCode}`, room);
+        await publishRoomUpdate(roomCode, room);
       }
 
       return jsonResponse({ success: true });
