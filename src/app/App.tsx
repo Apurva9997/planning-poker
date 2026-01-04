@@ -6,6 +6,15 @@ import { Toaster } from "./components/ui/sonner";
 import * as api from "./lib/api";
 import { subscribeToRoom, unsubscribeAll } from "./lib/realtime";
 import { useAdminAuth } from "./lib/adminAuth";
+import {
+  trackPageView,
+  trackRoomCreated,
+  trackRoomJoined,
+  trackVoteSubmitted,
+  trackVotesRevealed,
+  trackRoundReset,
+  trackRoomLeft,
+} from "./lib/analytics";
 
 interface Room {
   code: string;
@@ -29,6 +38,11 @@ export default function App() {
   const [isRevealing, setIsRevealing] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
+
+  // Track initial page view
+  useEffect(() => {
+    trackPageView(window.location.pathname, document.title);
+  }, []);
 
   // Load from URL or localStorage on mount
   useEffect(() => {
@@ -63,6 +77,7 @@ export default function App() {
               setCurrentPlayerId(null);
               // Update URL to home
               window.history.replaceState({}, "", "/");
+              trackPageView("/", "Home");
             }
             setIsLoading(false);
           })
@@ -73,6 +88,7 @@ export default function App() {
             setCurrentRoom(null);
             setCurrentPlayerId(null);
             window.history.replaceState({}, "", "/");
+            trackPageView("/", "Home");
             setIsLoading(false);
           });
       } else {
@@ -92,6 +108,7 @@ export default function App() {
         setIsLoading(true);
         // Update URL to match saved room
         window.history.replaceState({}, "", `/room/${savedRoomCode}`);
+        trackPageView(`/room/${savedRoomCode}`, `Room ${savedRoomCode}`);
         // Try to fetch the room data
         api
           .getRoom(savedRoomCode)
@@ -121,6 +138,7 @@ export default function App() {
             setCurrentRoom(null);
             setCurrentPlayerId(null);
             window.history.replaceState({}, "", "/");
+            trackPageView("/", "Home");
             setIsLoading(false);
           });
       }
@@ -131,6 +149,7 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const urlPath = window.location.pathname;
+      trackPageView(urlPath, document.title);
       const roomCodeMatch = urlPath.match(/^\/room\/([A-Z0-9]{6})$/i);
 
       if (!roomCodeMatch) {
@@ -171,6 +190,7 @@ export default function App() {
               setCurrentPlayerId(null);
               localStorage.removeItem("planningPokerRoom");
               localStorage.removeItem("planningPokerPlayerId");
+              trackPageView("/", "Home");
               setIsLoading(false);
             });
         } else {
@@ -207,6 +227,7 @@ export default function App() {
           localStorage.removeItem("planningPokerRoom");
           localStorage.removeItem("planningPokerPlayerId");
           window.history.replaceState({}, "", "/");
+          trackPageView("/", "Home");
           toast.info("You have been removed from the room");
           return;
         }
@@ -257,6 +278,7 @@ export default function App() {
             localStorage.removeItem("planningPokerRoom");
             localStorage.removeItem("planningPokerPlayerId");
             window.history.replaceState({}, "", "/");
+            trackPageView("/", "Home");
             toast.info("You have been removed from the room");
             return;
           }
@@ -285,6 +307,8 @@ export default function App() {
 
       // Update URL
       window.history.pushState({}, "", `/room/${room.code}`);
+      trackPageView(`/room/${room.code}`, `Room ${room.code}`);
+      trackRoomCreated(room.code);
 
       toast.success("Room created successfully!");
     } catch (err) {
@@ -310,6 +334,8 @@ export default function App() {
 
       // Update URL
       window.history.pushState({}, "", `/room/${room.code}`);
+      trackPageView(`/room/${room.code}`, `Room ${room.code}`);
+      trackRoomJoined(room.code);
 
       toast.success("Joined room successfully!");
     } catch (err) {
@@ -327,6 +353,7 @@ export default function App() {
     try {
       // Room data will be updated via Ably subscription
       await api.submitVote(currentRoom, currentPlayerId, value);
+      trackVoteSubmitted(currentRoom, value);
     } catch (err) {
       console.error("Failed to submit vote:", err);
       toast.error("Failed to submit vote. Please try again.");
@@ -342,6 +369,7 @@ export default function App() {
     try {
       // Room data will be updated via Ably subscription
       await api.revealVotes(currentRoom);
+      trackVotesRevealed(currentRoom);
       toast.success("Votes revealed!");
     } catch (err) {
       console.error("Failed to reveal votes:", err);
@@ -358,6 +386,7 @@ export default function App() {
     try {
       // Room data will be updated via Ably subscription
       await api.resetRound(currentRoom);
+      trackRoundReset(currentRoom);
       toast.success("Round reset!");
     } catch (err) {
       console.error("Failed to reset round:", err);
@@ -385,6 +414,8 @@ export default function App() {
 
       // Update URL to home
       window.history.pushState({}, "", "/");
+      trackPageView("/", "Home");
+      trackRoomLeft(currentRoom);
 
       toast.success("Left room successfully!");
     } catch (err) {
