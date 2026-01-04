@@ -7,12 +7,21 @@ import { Users, Plus } from 'lucide-react';
 interface HomePageProps {
   onCreateRoom: (playerName: string) => void;
   onJoinRoom: (roomCode: string, playerName: string) => void;
+  isCreatingRoom?: boolean;
+  isJoiningRoom?: boolean;
+  initialRoomCode?: string;
 }
 
-export function HomePage({ onCreateRoom, onJoinRoom }: HomePageProps) {
+export function HomePage({ 
+  onCreateRoom, 
+  onJoinRoom, 
+  isCreatingRoom = false,
+  isJoiningRoom = false,
+  initialRoomCode
+}: HomePageProps) {
   const [playerName, setPlayerName] = useState('');
-  const [roomCode, setRoomCode] = useState('');
-  const [mode, setMode] = useState<'select' | 'create' | 'join'>('select');
+  const [roomCode, setRoomCode] = useState(initialRoomCode || '');
+  const [mode, setMode] = useState<'select' | 'create' | 'join'>(initialRoomCode ? 'join' : 'select');
 
   const handleCreate = () => {
     if (playerName.trim()) {
@@ -82,13 +91,21 @@ export function HomePage({ onCreateRoom, onJoinRoom }: HomePageProps) {
                 <Button
                   className="flex-1"
                   onClick={handleCreate}
-                  disabled={!playerName.trim()}
+                  disabled={!playerName.trim() || isCreatingRoom}
                 >
-                  Create Room
+                  {isCreatingRoom ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Room'
+                  )}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => setMode('select')}
+                  disabled={isCreatingRoom}
                 >
                   Back
                 </Button>
@@ -125,13 +142,21 @@ export function HomePage({ onCreateRoom, onJoinRoom }: HomePageProps) {
                 <Button
                   className="flex-1"
                   onClick={handleJoin}
-                  disabled={!playerName.trim() || !roomCode.trim()}
+                  disabled={!playerName.trim() || !roomCode.trim() || isJoiningRoom}
                 >
-                  Join Room
+                  {isJoiningRoom ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                      Joining...
+                    </>
+                  ) : (
+                    'Join Room'
+                  )}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => setMode('select')}
+                  disabled={isJoiningRoom}
                 >
                   Back
                 </Button>

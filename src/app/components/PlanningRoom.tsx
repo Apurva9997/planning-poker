@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
-import { Eye, EyeOff, RotateCcw, Copy, Check, LogOut, Wifi } from 'lucide-react';
+import { Eye, EyeOff, RotateCcw, Copy, Check, LogOut, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export interface Player {
@@ -22,6 +22,9 @@ interface PlanningRoomProps {
   onReveal: () => void;
   onReset: () => void;
   onLeave: () => void;
+  isRevealing?: boolean;
+  isResetting?: boolean;
+  isVoting?: boolean;
 }
 
 const CARD_VALUES = ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕'];
@@ -35,8 +38,12 @@ export function PlanningRoom({
   onReveal,
   onReset,
   onLeave,
+  isRevealing = false,
+  isResetting = false,
+  isVoting = false,
 }: PlanningRoomProps) {
   const [copied, setCopied] = useState(false);
+  const [shareUrlCopied, setShareUrlCopied] = useState(false);
 
   const handleCopyCode = async () => {
     try {
@@ -46,6 +53,18 @@ export function PlanningRoom({
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       toast.error('Failed to copy code');
+    }
+  };
+
+  const handleShareUrl = async () => {
+    try {
+      const roomUrl = `${window.location.origin}/room/${roomCode}`;
+      await navigator.clipboard.writeText(roomUrl);
+      setShareUrlCopied(true);
+      toast.success('Room URL copied!');
+      setTimeout(() => setShareUrlCopied(false), 2000);
+    } catch (err) {
+      toast.error('Failed to copy URL');
     }
   };
 
@@ -70,7 +89,7 @@ export function PlanningRoom({
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl sm:text-3xl">🎴 Planning Poker</h1>
             <Button
               variant="outline"
@@ -80,6 +99,15 @@ export function PlanningRoom({
             >
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
               <span className="font-mono tracking-wider">{roomCode}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShareUrl}
+              className="gap-2"
+            >
+              {shareUrlCopied ? <Check className="size-4" /> : <Share2 className="size-4" />}
+              Share Room
             </Button>
           </div>
           <Button variant="outline" size="sm" onClick={onLeave}>
@@ -105,15 +133,37 @@ export function PlanningRoom({
               <div className="flex gap-2">
                 <Button
                   onClick={onReveal}
-                  disabled={revealed || hasVoted === 0}
+                  disabled={revealed || hasVoted === 0 || isRevealing}
                   variant={allVoted && !revealed ? "default" : "outline"}
                 >
-                  {revealed ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
-                  {revealed ? 'Revealed' : 'Reveal Cards'}
+                  {isRevealing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                      Revealing...
+                    </>
+                  ) : (
+                    <>
+                      {revealed ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
+                      {revealed ? 'Revealed' : 'Reveal Cards'}
+                    </>
+                  )}
                 </Button>
-                <Button onClick={onReset} variant="outline">
-                  <RotateCcw className="size-4 mr-2" />
-                  New Round
+                <Button 
+                  onClick={onReset} 
+                  variant="outline"
+                  disabled={isResetting}
+                >
+                  {isResetting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                      Resetting...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="size-4 mr-2" />
+                      New Round
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -171,14 +221,18 @@ export function PlanningRoom({
               <button
                 key={value}
                 onClick={() => onVote(currentPlayer.vote === value ? null : value)}
-                disabled={revealed || currentPlayer.isObserver}
+                disabled={revealed || currentPlayer.isObserver || isVoting}
                 className={`aspect-[2/3] rounded-lg text-xl sm:text-2xl transition-all ${
                   currentPlayer.vote === value
                     ? 'bg-blue-500 text-white scale-105 shadow-lg'
                     : 'bg-white hover:bg-blue-50 hover:scale-105 shadow'
                 } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
               >
-                {value}
+                {isVoting && currentPlayer.vote === value ? (
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-current mx-auto"></div>
+                ) : (
+                  value
+                )}
               </button>
             ))}
           </div>

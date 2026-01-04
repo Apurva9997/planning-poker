@@ -21,40 +21,156 @@ export default function App() {
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<Room | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [isVoting, setIsVoting] = useState(false);
 
-  // Load from localStorage on mount
+  // Load from URL or localStorage on mount
   useEffect(() => {
-    const savedRoomCode = localStorage.getItem('planningPokerRoom');
-    const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
-
-    if (savedRoomCode && savedPlayerId) {
-      setCurrentRoom(savedRoomCode);
-      setCurrentPlayerId(savedPlayerId);
-      // Try to fetch the room data
-      api.getRoom(savedRoomCode)
-        .then(room => {
-          // Check if the player still exists in the room
-          const playerExists = room.players.some(p => p.id === savedPlayerId);
-          if (playerExists) {
-            setRoomData(room);
-          } else {
-            // Player not in room, clear saved data
-            console.log('Player no longer in saved room, clearing session');
+    const urlPath = window.location.pathname;
+    const roomCodeMatch = urlPath.match(/^\/room\/([A-Z0-9]{6})$/i);
+    
+    if (roomCodeMatch) {
+      const roomCode = roomCodeMatch[1].toUpperCase();
+      // Check if we have a saved player ID for this room
+      const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
+      const savedRoomCode = localStorage.getItem('planningPokerRoom');
+      
+      if (savedPlayerId && savedRoomCode === roomCode) {
+        // We have a saved session for this room
+        setCurrentRoom(roomCode);
+        setCurrentPlayerId(savedPlayerId);
+        setIsLoading(true);
+        api.getRoom(roomCode)
+          .then(room => {
+            const playerExists = room.players.some(p => p.id === savedPlayerId);
+            if (playerExists) {
+              setRoomData(room);
+            } else {
+              // Player not in room, clear saved data
+              console.log('Player no longer in saved room, clearing session');
+              localStorage.removeItem('planningPokerRoom');
+              localStorage.removeItem('planningPokerPlayerId');
+              setCurrentRoom(null);
+              setCurrentPlayerId(null);
+              // Update URL to home
+              window.history.replaceState({}, '', '/');
+            }
+            setIsLoading(false);
+          })
+          .catch(err => {
+            console.log('Saved room not found, clearing session');
             localStorage.removeItem('planningPokerRoom');
             localStorage.removeItem('planningPokerPlayerId');
             setCurrentRoom(null);
             setCurrentPlayerId(null);
-          }
-        })
-        .catch(err => {
-          console.log('Saved room not found, clearing session');
-          // Clear invalid saved data - don't show error toast as this is expected
-          localStorage.removeItem('planningPokerRoom');
-          localStorage.removeItem('planningPokerPlayerId');
+            window.history.replaceState({}, '', '/');
+            setIsLoading(false);
+          });
+      } else {
+        // No saved session, but we have a room code in URL - user needs to join
+        setCurrentRoom(null);
+        setCurrentPlayerId(null);
+        setIsLoading(false);
+      }
+    } else {
+      // No room code in URL, check localStorage
+      const savedRoomCode = localStorage.getItem('planningPokerRoom');
+      const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
+
+      if (savedRoomCode && savedPlayerId) {
+        setCurrentRoom(savedRoomCode);
+        setCurrentPlayerId(savedPlayerId);
+        setIsLoading(true);
+        // Update URL to match saved room
+        window.history.replaceState({}, '', `/room/${savedRoomCode}`);
+        // Try to fetch the room data
+        api.getRoom(savedRoomCode)
+          .then(room => {
+            // Check if the player still exists in the room
+            const playerExists = room.players.some(p => p.id === savedPlayerId);
+            if (playerExists) {
+              setRoomData(room);
+            } else {
+              // Player not in room, clear saved data
+              console.log('Player no longer in saved room, clearing session');
+              localStorage.removeItem('planningPokerRoom');
+              localStorage.removeItem('planningPokerPlayerId');
+              setCurrentRoom(null);
+              setCurrentPlayerId(null);
+              window.history.replaceState({}, '', '/');
+            }
+            setIsLoading(false);
+          })
+          .catch(err => {
+            console.log('Saved room not found, clearing session');
+            // Clear invalid saved data - don't show error toast as this is expected
+            localStorage.removeItem('planningPokerRoom');
+            localStorage.removeItem('planningPokerPlayerId');
+            setCurrentRoom(null);
+            setCurrentPlayerId(null);
+            window.history.replaceState({}, '', '/');
+            setIsLoading(false);
+          });
+      }
+    }
+  }, []);
+
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlPath = window.location.pathname;
+      const roomCodeMatch = urlPath.match(/^\/room\/([A-Z0-9]{6})$/i);
+      
+      if (!roomCodeMatch) {
+        // Navigated to home, clear room state
+        setCurrentRoom(null);
+        setCurrentPlayerId(null);
+        setRoomData(null);
+        localStorage.removeItem('planningPokerRoom');
+        localStorage.removeItem('planningPokerPlayerId');
+      } else {
+        // Navigated to a room URL, try to restore session
+        const roomCode = roomCodeMatch[1].toUpperCase();
+        const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
+        const savedRoomCode = localStorage.getItem('planningPokerRoom');
+        
+        if (savedPlayerId && savedRoomCode === roomCode) {
+          setCurrentRoom(roomCode);
+          setCurrentPlayerId(savedPlayerId);
+          setIsLoading(true);
+          api.getRoom(roomCode)
+            .then(room => {
+              const playerExists = room.players.some(p => p.id === savedPlayerId);
+              if (playerExists) {
+                setRoomData(room);
+              } else {
+                setCurrentRoom(null);
+                setCurrentPlayerId(null);
+                localStorage.removeItem('planningPokerRoom');
+                localStorage.removeItem('planningPokerPlayerId');
+              }
+              setIsLoading(false);
+            })
+            .catch(() => {
+              setCurrentRoom(null);
+              setCurrentPlayerId(null);
+              localStorage.removeItem('planningPokerRoom');
+              localStorage.removeItem('planningPokerPlayerId');
+              setIsLoading(false);
+            });
+        } else {
           setCurrentRoom(null);
           setCurrentPlayerId(null);
-        });
-    }
+          setRoomData(null);
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // Poll for room updates when in a room
@@ -75,6 +191,7 @@ export default function App() {
           setRoomData(null);
           localStorage.removeItem('planningPokerRoom');
           localStorage.removeItem('planningPokerPlayerId');
+          window.history.replaceState({}, '', '/');
           toast.info('You have been removed from the room');
           return;
         }
@@ -89,6 +206,7 @@ export default function App() {
         setRoomData(null);
         localStorage.removeItem('planningPokerRoom');
         localStorage.removeItem('planningPokerPlayerId');
+        window.history.replaceState({}, '', '/');
       }
     }, 2000); // Poll every 2 seconds
 
@@ -96,7 +214,7 @@ export default function App() {
   }, [currentRoom, currentPlayerId]);
 
   const handleCreateRoom = async (playerName: string) => {
-    setIsLoading(true);
+    setIsCreatingRoom(true);
     try {
       const playerId = generatePlayerId();
       const room = await api.createRoom(playerName, playerId);
@@ -108,17 +226,20 @@ export default function App() {
       localStorage.setItem('planningPokerRoom', room.code);
       localStorage.setItem('planningPokerPlayerId', playerId);
       
+      // Update URL
+      window.history.pushState({}, '', `/room/${room.code}`);
+      
       toast.success('Room created successfully!');
     } catch (err) {
       console.error('Failed to create room:', err);
       toast.error('Failed to create room. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsCreatingRoom(false);
     }
   };
 
   const handleJoinRoom = async (roomCode: string, playerName: string) => {
-    setIsLoading(true);
+    setIsJoiningRoom(true);
     try {
       const playerId = generatePlayerId();
       const room = await api.joinRoom(roomCode, playerName, playerId);
@@ -130,30 +251,37 @@ export default function App() {
       localStorage.setItem('planningPokerRoom', room.code);
       localStorage.setItem('planningPokerPlayerId', playerId);
       
+      // Update URL
+      window.history.pushState({}, '', `/room/${room.code}`);
+      
       toast.success('Joined room successfully!');
     } catch (err) {
       console.error('Failed to join room:', err);
       toast.error('Failed to join room. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsJoiningRoom(false);
     }
   };
 
   const handleVote = async (value: string | null) => {
     if (!currentRoom || !currentPlayerId) return;
 
+    setIsVoting(true);
     try {
       const room = await api.submitVote(currentRoom, currentPlayerId, value);
       setRoomData(room);
     } catch (err) {
       console.error('Failed to submit vote:', err);
       toast.error('Failed to submit vote. Please try again.');
+    } finally {
+      setIsVoting(false);
     }
   };
 
   const handleReveal = async () => {
     if (!currentRoom) return;
 
+    setIsRevealing(true);
     try {
       const room = await api.revealVotes(currentRoom);
       setRoomData(room);
@@ -161,12 +289,15 @@ export default function App() {
     } catch (err) {
       console.error('Failed to reveal votes:', err);
       toast.error('Failed to reveal votes. Please try again.');
+    } finally {
+      setIsRevealing(false);
     }
   };
 
   const handleReset = async () => {
     if (!currentRoom) return;
 
+    setIsResetting(true);
     try {
       const room = await api.resetRound(currentRoom);
       setRoomData(room);
@@ -174,6 +305,8 @@ export default function App() {
     } catch (err) {
       console.error('Failed to reset round:', err);
       toast.error('Failed to reset round. Please try again.');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -190,6 +323,9 @@ export default function App() {
       localStorage.removeItem('planningPokerRoom');
       localStorage.removeItem('planningPokerPlayerId');
       
+      // Update URL to home
+      window.history.pushState({}, '', '/');
+      
       toast.success('Left room successfully!');
     } catch (err) {
       console.error('Failed to leave room:', err);
@@ -202,7 +338,7 @@ export default function App() {
   if (isLoading) {
     return (
       <>
-        <div className="size-full flex items-center justify-center">
+        <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading...</p>
@@ -213,10 +349,21 @@ export default function App() {
     );
   }
 
+  // Extract room code from URL if present
+  const urlPath = window.location.pathname;
+  const roomCodeMatch = urlPath.match(/^\/room\/([A-Z0-9]{6})$/i);
+  const urlRoomCode = roomCodeMatch ? roomCodeMatch[1].toUpperCase() : null;
+
   if (!currentRoom || !currentPlayer || !roomData) {
     return (
       <>
-        <HomePage onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} />
+        <HomePage 
+          onCreateRoom={handleCreateRoom} 
+          onJoinRoom={handleJoinRoom}
+          isCreatingRoom={isCreatingRoom}
+          isJoiningRoom={isJoiningRoom}
+          initialRoomCode={urlRoomCode || undefined}
+        />
         <Toaster />
       </>
     );
@@ -233,6 +380,9 @@ export default function App() {
         onReveal={handleReveal}
         onReset={handleReset}
         onLeave={handleLeave}
+        isRevealing={isRevealing}
+        isResetting={isResetting}
+        isVoting={isVoting}
       />
       <Toaster />
     </>
