@@ -5,10 +5,10 @@
  * Uses Neon PostgreSQL for data storage.
  */
 
-import type { Handler, HandlerEvent } from "@netlify/functions";
-import Ably from "ably";
-import * as admin from "firebase-admin";
-import * as db from "./db";
+import type { Handler, HandlerEvent } from '@netlify/functions';
+import Ably from 'ably';
+import * as admin from 'firebase-admin';
+import * as db from './db';
 
 interface Player {
   id: string;
@@ -18,11 +18,22 @@ interface Player {
   lastSeen: number;
 }
 
+interface BreakoutRoom {
+  id: string;
+  name: string;
+  code: string;
+  players: Player[];
+  revealed: boolean;
+  createdAt: number;
+}
+
 interface Room {
   code: string;
   players: Player[];
   revealed: boolean;
   createdAt: number;
+  creatorId?: string;
+  breakoutRooms?: BreakoutRoom[];
 }
 
 // Initialize Firebase Admin
@@ -42,7 +53,7 @@ function initializeFirebaseAdmin() {
         });
         firebaseAdminInitialized = true;
       } catch (parseError) {
-        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT:", parseError);
+        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT:', parseError);
       }
     } else {
       // Fallback: use default credentials if available (e.g., on Google Cloud)
@@ -51,14 +62,14 @@ function initializeFirebaseAdmin() {
         firebaseAdminInitialized = true;
       } catch (initError) {
         console.warn(
-          "Firebase Admin initialization failed - admin features will be disabled:",
+          'Firebase Admin initialization failed - admin features will be disabled:',
           initError
         );
       }
     }
   } catch (error) {
     console.warn(
-      "Firebase Admin initialization failed - admin features will be disabled:",
+      'Firebase Admin initialization failed - admin features will be disabled:',
       error
     );
   }
@@ -66,15 +77,15 @@ function initializeFirebaseAdmin() {
 
 // CORS headers
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
 // Helper to generate room code
 function generateRoomCode(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
   for (let i = 0; i < 6; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
@@ -84,27 +95,27 @@ function generateRoomCode(): string {
 // Input validation helpers
 function validatePlayerName(name: string): boolean {
   return (
-    typeof name === "string" &&
+    typeof name === 'string' &&
     name.trim().length > 0 &&
     name.trim().length <= 50
   );
 }
 
 function validatePlayerId(id: string): boolean {
-  return typeof id === "string" && id.length > 0 && id.length <= 100;
+  return typeof id === 'string' && id.length > 0 && id.length <= 100;
 }
 
 function validateRoomCode(code: string): boolean {
-  return typeof code === "string" && /^[A-Z0-9]{6}$/.test(code);
+  return typeof code === 'string' && /^[A-Z0-9]{6}$/.test(code);
 }
 
 // JSON response helper
-function jsonResponse(data: any, statusCode: number = 200) {
+function jsonResponse(data: unknown, statusCode: number = 200) {
   return {
     statusCode,
     headers: {
       ...corsHeaders,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
   };
@@ -122,15 +133,15 @@ async function verifyAdminToken(
   initializeFirebaseAdmin();
 
   if (!firebaseAdminInitialized || admin.apps.length === 0) {
-    console.error("Firebase Admin not initialized - cannot verify admin token");
+    console.error('Firebase Admin not initialized - cannot verify admin token');
     return null;
   }
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
   }
 
-  const idToken = authHeader.split("Bearer ")[1];
+  const idToken = authHeader.split('Bearer ')[1];
   if (!idToken) {
     return null;
   }
@@ -146,7 +157,7 @@ async function verifyAdminToken(
 
     return { uid, email, isAdmin: true };
   } catch (error) {
-    console.error("Error verifying token:", error);
+    console.error('Error verifying token:', error);
     return null;
   }
 }
@@ -160,7 +171,7 @@ function getAblyClient(): Ably.Rest | null {
   if (!apiKey) {
     // Ably is optional - log warning but don't fail
     if (!ablyClient) {
-      console.warn("ABLY_API_KEY not set - real-time updates disabled");
+      console.warn('ABLY_API_KEY not set - real-time updates disabled');
     }
     return null;
   }
@@ -181,41 +192,83 @@ async function publishRoomUpdate(roomCode: string, room: Room): Promise<void> {
     }
 
     const channel = client.channels.get(`room:${roomCode}`);
-    await channel.publish("room-update", room);
+    await channel.publish('room-update', room);
   } catch (error) {
     // Don't fail the request if Ably publish fails
-    console.error("Failed to publish room update to Ably:", error);
+    console.error('Failed to publish room update to Ably:', error);
   }
+}
+
+// Check if player is room creator
+async function isRoomCreator(
+  roomCode: string,
+  playerId: string
+): Promise<boolean> {
+  const room = await db.get(`room:${roomCode}`);
+  if (!room) {
+    return false;
+  }
+  // If creatorId is set, use it; otherwise, first player is creator (backward compatibility)
+  if (room.creatorId) {
+    return room.creatorId === playerId;
+  }
+  // Legacy: first player is creator
+  return room.players.length > 0 && room.players[0].id === playerId;
+}
+
+// Assign players evenly to breakout rooms (round-robin)
+function assignPlayersToBreakoutRooms(
+  players: Player[],
+  numBreakouts: number
+): Player[][] {
+  // Filter out observers for assignment
+  const votingPlayers = players.filter((p) => !p.isObserver);
+  const assignments: Player[][] = Array(numBreakouts)
+    .fill(null)
+    .map(() => []);
+
+  // Round-robin assignment
+  votingPlayers.forEach((player, index) => {
+    const breakoutIndex = index % numBreakouts;
+    assignments[breakoutIndex].push(player);
+  });
+
+  return assignments;
+}
+
+// Generate unique breakout room ID
+function generateBreakoutRoomId(): string {
+  return Math.random().toString(36).substring(2, 15);
 }
 
 const handler: Handler = async (event: HandlerEvent) => {
   // Handle CORS preflight
-  if (event.httpMethod === "OPTIONS") {
+  if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
       headers: corsHeaders,
-      body: "",
+      body: '',
     };
   }
 
-  const path = event.path.replace("/.netlify/functions/api", "");
+  const path = event.path.replace('/.netlify/functions/api', '');
   const method = event.httpMethod;
 
   try {
     // Health check
-    if (path === "/health" && method === "GET") {
+    if (path === '/health' && method === 'GET') {
       return jsonResponse({
-        status: "ok",
+        status: 'ok',
         timestamp: new Date().toISOString(),
       });
     }
 
     // Create room
-    if (path === "/create-room" && method === "POST") {
-      const { playerName, playerId, adminUid } = JSON.parse(event.body || "{}");
+    if (path === '/create-room' && method === 'POST') {
+      const { playerName, playerId, adminUid } = JSON.parse(event.body || '{}');
 
       if (!validatePlayerName(playerName) || !validatePlayerId(playerId)) {
-        return errorResponse("Player name and ID required", 400);
+        return errorResponse('Player name and ID required', 400);
       }
 
       let roomCode = generateRoomCode();
@@ -230,7 +283,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       }
 
       if (existingRoom) {
-        return errorResponse("Failed to generate unique room code", 500);
+        return errorResponse('Failed to generate unique room code', 500);
       }
 
       const newPlayer: Player = {
@@ -246,6 +299,8 @@ const handler: Handler = async (event: HandlerEvent) => {
         players: [newPlayer],
         revealed: false,
         createdAt: Date.now(),
+        creatorId: playerId.trim(),
+        breakoutRooms: [],
       };
 
       await db.set(`room:${roomCode}`, newRoom);
@@ -263,15 +318,15 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Join room
-    if (path === "/join-room" && method === "POST") {
-      const { roomCode, playerName, playerId } = JSON.parse(event.body || "{}");
+    if (path === '/join-room' && method === 'POST') {
+      const { roomCode, playerName, playerId } = JSON.parse(event.body || '{}');
 
       if (
         !validateRoomCode(roomCode) ||
         !validatePlayerName(playerName) ||
         !validatePlayerId(playerId)
       ) {
-        return errorResponse("Room code, player name, and ID required", 400);
+        return errorResponse('Room code, player name, and ID required', 400);
       }
 
       const room = await db.get(`room:${roomCode}`);
@@ -291,11 +346,21 @@ const handler: Handler = async (event: HandlerEvent) => {
           players: [newPlayer],
           revealed: false,
           createdAt: Date.now(),
+          creatorId: playerId.trim(),
+          breakoutRooms: [],
         };
 
         await db.set(`room:${roomCode.toUpperCase()}`, newRoom);
         await publishRoomUpdate(roomCode.toUpperCase(), newRoom);
         return jsonResponse({ room: newRoom });
+      }
+
+      // Ensure backward compatibility
+      if (!room.creatorId && room.players.length > 0) {
+        room.creatorId = room.players[0].id;
+      }
+      if (!room.breakoutRooms) {
+        room.breakoutRooms = [];
       }
 
       // Check if player already exists
@@ -310,7 +375,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       } else {
         // Add new player (limit to 50 players per room)
         if (room.players.length >= 50) {
-          return errorResponse("Room is full", 400);
+          return errorResponse('Room is full', 400);
         }
 
         const newPlayer: Player = {
@@ -329,51 +394,59 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Get room
-    if (path.startsWith("/room/") && method === "GET") {
-      const roomCode = path.split("/room/")[1];
+    if (path.startsWith('/room/') && method === 'GET') {
+      const roomCode = path.split('/room/')[1];
       if (!validateRoomCode(roomCode)) {
-        return errorResponse("Invalid room code", 400);
+        return errorResponse('Invalid room code', 400);
       }
 
       const room = await db.get(`room:${roomCode}`);
 
       if (!room) {
-        return errorResponse("Room not found", 404);
+        return errorResponse('Room not found', 404);
+      }
+
+      // Ensure backward compatibility
+      if (!room.creatorId && room.players.length > 0) {
+        room.creatorId = room.players[0].id;
+      }
+      if (!room.breakoutRooms) {
+        room.breakoutRooms = [];
       }
 
       return jsonResponse({ room });
     }
 
     // Submit vote
-    if (path === "/vote" && method === "POST") {
-      const { roomCode, playerId, vote } = JSON.parse(event.body || "{}");
+    if (path === '/vote' && method === 'POST') {
+      const { roomCode, playerId, vote } = JSON.parse(event.body || '{}');
 
       if (!validateRoomCode(roomCode) || !validatePlayerId(playerId)) {
-        return errorResponse("Room code and player ID required", 400);
+        return errorResponse('Room code and player ID required', 400);
       }
 
       // Validate vote value
       const validVotes = [
-        "0",
-        "1",
-        "2",
-        "3",
-        "5",
-        "8",
-        "13",
-        "21",
-        "?",
-        "☕",
+        '0',
+        '1',
+        '2',
+        '3',
+        '5',
+        '8',
+        '13',
+        '21',
+        '?',
+        '☕',
         null,
       ];
       if (vote !== null && !validVotes.includes(vote)) {
-        return errorResponse("Invalid vote value", 400);
+        return errorResponse('Invalid vote value', 400);
       }
 
       const room = await db.get(`room:${roomCode}`);
 
       if (!room) {
-        return errorResponse("Room not found", 404);
+        return errorResponse('Room not found', 404);
       }
 
       const playerIndex = room.players.findIndex(
@@ -381,7 +454,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       );
 
       if (playerIndex === -1) {
-        return errorResponse("Player not found in room", 404);
+        return errorResponse('Player not found in room', 404);
       }
 
       room.players[playerIndex].vote = vote;
@@ -393,17 +466,17 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Reveal votes
-    if (path === "/reveal" && method === "POST") {
-      const { roomCode } = JSON.parse(event.body || "{}");
+    if (path === '/reveal' && method === 'POST') {
+      const { roomCode } = JSON.parse(event.body || '{}');
 
       if (!validateRoomCode(roomCode)) {
-        return errorResponse("Room code required", 400);
+        return errorResponse('Room code required', 400);
       }
 
       const room = await db.get(`room:${roomCode}`);
 
       if (!room) {
-        return errorResponse("Room not found", 404);
+        return errorResponse('Room not found', 404);
       }
 
       room.revealed = true;
@@ -414,17 +487,17 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Reset round
-    if (path === "/reset" && method === "POST") {
-      const { roomCode } = JSON.parse(event.body || "{}");
+    if (path === '/reset' && method === 'POST') {
+      const { roomCode } = JSON.parse(event.body || '{}');
 
       if (!validateRoomCode(roomCode)) {
-        return errorResponse("Room code required", 400);
+        return errorResponse('Room code required', 400);
       }
 
       const room = await db.get(`room:${roomCode}`);
 
       if (!room) {
-        return errorResponse("Room not found", 404);
+        return errorResponse('Room not found', 404);
       }
 
       room.players = room.players.map((p: Player) => ({ ...p, vote: null }));
@@ -436,20 +509,32 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Leave room
-    if (path === "/leave" && method === "POST") {
-      const { roomCode, playerId } = JSON.parse(event.body || "{}");
+    if (path === '/leave' && method === 'POST') {
+      const { roomCode, playerId } = JSON.parse(event.body || '{}');
 
       if (!validateRoomCode(roomCode) || !validatePlayerId(playerId)) {
-        return errorResponse("Room code and player ID required", 400);
+        return errorResponse('Room code and player ID required', 400);
       }
 
       const room = await db.get(`room:${roomCode}`);
 
       if (!room) {
-        return errorResponse("Room not found", 404);
+        return errorResponse('Room not found', 404);
       }
 
       room.players = room.players.filter((p: Player) => p.id !== playerId);
+
+      // Remove player from all breakout rooms
+      if (room.breakoutRooms) {
+        room.breakoutRooms = room.breakoutRooms.map((br: BreakoutRoom) => ({
+          ...br,
+          players: br.players.filter((p: Player) => p.id !== playerId),
+        }));
+        // Remove empty breakout rooms
+        room.breakoutRooms = room.breakoutRooms.filter(
+          (br: BreakoutRoom) => br.players.length > 0
+        );
+      }
 
       // Delete room if empty
       if (room.players.length === 0) {
@@ -464,21 +549,413 @@ const handler: Handler = async (event: HandlerEvent) => {
       return jsonResponse({ success: true });
     }
 
+    // Create breakout rooms
+    if (path === '/create-breakout-rooms' && method === 'POST') {
+      const { roomCode, playerId, numBreakouts } = JSON.parse(
+        event.body || '{}'
+      );
+
+      if (!validateRoomCode(roomCode) || !validatePlayerId(playerId)) {
+        return errorResponse('Room code and player ID required', 400);
+      }
+
+      if (
+        typeof numBreakouts !== 'number' ||
+        numBreakouts < 2 ||
+        numBreakouts > 10
+      ) {
+        return errorResponse(
+          'Number of breakout rooms must be between 2 and 10',
+          400
+        );
+      }
+
+      const room = await db.get(`room:${roomCode}`);
+
+      if (!room) {
+        return errorResponse('Room not found', 404);
+      }
+
+      // Ensure backward compatibility
+      if (!room.creatorId && room.players.length > 0) {
+        room.creatorId = room.players[0].id;
+      }
+      if (!room.breakoutRooms) {
+        room.breakoutRooms = [];
+      }
+
+      // Check if player is room creator
+      const isCreator = await isRoomCreator(roomCode, playerId);
+      if (!isCreator) {
+        return errorResponse(
+          'Only room creator can create breakout rooms',
+          403
+        );
+      }
+
+      // Check if there are enough players
+      const votingPlayers = room.players.filter((p: Player) => !p.isObserver);
+      if (votingPlayers.length < 2) {
+        return errorResponse(
+          'At least 2 voting players required to create breakout rooms',
+          400
+        );
+      }
+
+      // Check if already in voting round
+      if (room.revealed || votingPlayers.some((p: Player) => p.vote !== null)) {
+        return errorResponse(
+          'Cannot create breakout rooms during an active voting round',
+          400
+        );
+      }
+
+      // Calculate max breakout rooms (at least 2 players per room)
+      const maxBreakouts = Math.floor(votingPlayers.length / 2);
+      const actualNumBreakouts = Math.min(numBreakouts, maxBreakouts);
+
+      if (actualNumBreakouts < 2) {
+        return errorResponse(
+          'Not enough players to create breakout rooms (need at least 4 players)',
+          400
+        );
+      }
+
+      // Assign players to breakout rooms
+      const assignments = assignPlayersToBreakoutRooms(
+        room.players,
+        actualNumBreakouts
+      );
+
+      // Create breakout rooms
+      const newBreakoutRooms: BreakoutRoom[] = [];
+      for (let i = 0; i < actualNumBreakouts; i++) {
+        const breakoutId = generateBreakoutRoomId();
+        const breakoutRoom: BreakoutRoom = {
+          id: breakoutId,
+          name: `Breakout Room ${i + 1}`,
+          code: `${roomCode}-BR${i + 1}`,
+          players: assignments[i],
+          revealed: false,
+          createdAt: Date.now(),
+        };
+        newBreakoutRooms.push(breakoutRoom);
+      }
+
+      room.breakoutRooms = newBreakoutRooms;
+
+      await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
+      return jsonResponse({ room });
+    }
+
+    // Join breakout room
+    if (path === '/join-breakout-room' && method === 'POST') {
+      const { roomCode, playerId, breakoutRoomId } = JSON.parse(
+        event.body || '{}'
+      );
+
+      if (
+        !validateRoomCode(roomCode) ||
+        !validatePlayerId(playerId) ||
+        typeof breakoutRoomId !== 'string'
+      ) {
+        return errorResponse(
+          'Room code, player ID, and breakout room ID required',
+          400
+        );
+      }
+
+      const room = await db.get(`room:${roomCode}`);
+
+      if (!room) {
+        return errorResponse('Room not found', 404);
+      }
+
+      // Ensure backward compatibility
+      if (!room.breakoutRooms) {
+        room.breakoutRooms = [];
+      }
+
+      // Find player in main room
+      const player = room.players.find((p: Player) => p.id === playerId);
+      if (!player) {
+        return errorResponse('Player not found in room', 404);
+      }
+
+      // Find breakout room
+      const breakoutRoom = room.breakoutRooms.find(
+        (br: BreakoutRoom) => br.id === breakoutRoomId
+      );
+      if (!breakoutRoom) {
+        return errorResponse('Breakout room not found', 404);
+      }
+
+      // Remove player from other breakout rooms
+      room.breakoutRooms = room.breakoutRooms.map((br: BreakoutRoom) => ({
+        ...br,
+        players: br.players.filter((p: Player) => p.id !== playerId),
+      }));
+
+      // Add player to target breakout room if not already there
+      if (!breakoutRoom.players.some((p: Player) => p.id === playerId)) {
+        breakoutRoom.players.push(player);
+      }
+
+      // Update the breakout room in the array
+      const breakoutIndex = room.breakoutRooms.findIndex(
+        (br: BreakoutRoom) => br.id === breakoutRoomId
+      );
+      if (breakoutIndex >= 0) {
+        room.breakoutRooms[breakoutIndex] = breakoutRoom;
+      }
+
+      await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
+      return jsonResponse({ room });
+    }
+
+    // Leave breakout room
+    if (path === '/leave-breakout-room' && method === 'POST') {
+      const { roomCode, playerId } = JSON.parse(event.body || '{}');
+
+      if (!validateRoomCode(roomCode) || !validatePlayerId(playerId)) {
+        return errorResponse('Room code and player ID required', 400);
+      }
+
+      const room = await db.get(`room:${roomCode}`);
+
+      if (!room) {
+        return errorResponse('Room not found', 404);
+      }
+
+      // Ensure backward compatibility
+      if (!room.breakoutRooms) {
+        room.breakoutRooms = [];
+      }
+
+      // Remove player from all breakout rooms
+      room.breakoutRooms = room.breakoutRooms.map((br: BreakoutRoom) => ({
+        ...br,
+        players: br.players.filter((p: Player) => p.id !== playerId),
+      }));
+
+      await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
+      return jsonResponse({ room });
+    }
+
+    // Submit vote in breakout room
+    if (path === '/breakout-room/vote' && method === 'POST') {
+      const { roomCode, breakoutRoomId, playerId, vote } = JSON.parse(
+        event.body || '{}'
+      );
+
+      if (
+        !validateRoomCode(roomCode) ||
+        !validatePlayerId(playerId) ||
+        typeof breakoutRoomId !== 'string'
+      ) {
+        return errorResponse(
+          'Room code, breakout room ID, and player ID required',
+          400
+        );
+      }
+
+      // Validate vote value
+      const validVotes = [
+        '0',
+        '1',
+        '2',
+        '3',
+        '5',
+        '8',
+        '13',
+        '21',
+        '?',
+        '☕',
+        null,
+      ];
+      if (vote !== null && !validVotes.includes(vote)) {
+        return errorResponse('Invalid vote value', 400);
+      }
+
+      const room = await db.get(`room:${roomCode}`);
+
+      if (!room) {
+        return errorResponse('Room not found', 404);
+      }
+
+      // Ensure backward compatibility
+      if (!room.breakoutRooms) {
+        room.breakoutRooms = [];
+      }
+
+      // Find breakout room
+      const breakoutRoom = room.breakoutRooms.find(
+        (br: BreakoutRoom) => br.id === breakoutRoomId
+      );
+      if (!breakoutRoom) {
+        return errorResponse('Breakout room not found', 404);
+      }
+
+      // Find player in breakout room
+      const playerIndex = breakoutRoom.players.findIndex(
+        (p: Player) => p.id === playerId
+      );
+      if (playerIndex === -1) {
+        return errorResponse('Player not found in breakout room', 404);
+      }
+
+      breakoutRoom.players[playerIndex].vote = vote;
+      breakoutRoom.players[playerIndex].lastSeen = Date.now();
+
+      // Update the breakout room in the array
+      const breakoutIndex = room.breakoutRooms.findIndex(
+        (br: BreakoutRoom) => br.id === breakoutRoomId
+      );
+      if (breakoutIndex >= 0) {
+        room.breakoutRooms[breakoutIndex] = breakoutRoom;
+      }
+
+      await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
+      return jsonResponse({ room });
+    }
+
+    // Reveal votes in breakout room
+    if (path === '/breakout-room/reveal' && method === 'POST') {
+      const { roomCode, breakoutRoomId } = JSON.parse(event.body || '{}');
+
+      if (!validateRoomCode(roomCode) || typeof breakoutRoomId !== 'string') {
+        return errorResponse('Room code and breakout room ID required', 400);
+      }
+
+      const room = await db.get(`room:${roomCode}`);
+
+      if (!room) {
+        return errorResponse('Room not found', 404);
+      }
+
+      // Ensure backward compatibility
+      if (!room.breakoutRooms) {
+        room.breakoutRooms = [];
+      }
+
+      // Find breakout room
+      const breakoutRoom = room.breakoutRooms.find(
+        (br: BreakoutRoom) => br.id === breakoutRoomId
+      );
+      if (!breakoutRoom) {
+        return errorResponse('Breakout room not found', 404);
+      }
+
+      breakoutRoom.revealed = true;
+
+      // Update the breakout room in the array
+      const breakoutIndex = room.breakoutRooms.findIndex(
+        (br: BreakoutRoom) => br.id === breakoutRoomId
+      );
+      if (breakoutIndex >= 0) {
+        room.breakoutRooms[breakoutIndex] = breakoutRoom;
+      }
+
+      await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
+      return jsonResponse({ room });
+    }
+
+    // Reset round in breakout room
+    if (path === '/breakout-room/reset' && method === 'POST') {
+      const { roomCode, breakoutRoomId } = JSON.parse(event.body || '{}');
+
+      if (!validateRoomCode(roomCode) || typeof breakoutRoomId !== 'string') {
+        return errorResponse('Room code and breakout room ID required', 400);
+      }
+
+      const room = await db.get(`room:${roomCode}`);
+
+      if (!room) {
+        return errorResponse('Room not found', 404);
+      }
+
+      // Ensure backward compatibility
+      if (!room.breakoutRooms) {
+        room.breakoutRooms = [];
+      }
+
+      // Find breakout room
+      const breakoutRoom = room.breakoutRooms.find(
+        (br: BreakoutRoom) => br.id === breakoutRoomId
+      );
+      if (!breakoutRoom) {
+        return errorResponse('Breakout room not found', 404);
+      }
+
+      breakoutRoom.players = breakoutRoom.players.map((p: Player) => ({
+        ...p,
+        vote: null,
+      }));
+      breakoutRoom.revealed = false;
+
+      // Update the breakout room in the array
+      const breakoutIndex = room.breakoutRooms.findIndex(
+        (br: BreakoutRoom) => br.id === breakoutRoomId
+      );
+      if (breakoutIndex >= 0) {
+        room.breakoutRooms[breakoutIndex] = breakoutRoom;
+      }
+
+      await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
+      return jsonResponse({ room });
+    }
+
+    // Delete breakout rooms
+    if (path === '/delete-breakout-rooms' && method === 'POST') {
+      const { roomCode, playerId } = JSON.parse(event.body || '{}');
+
+      if (!validateRoomCode(roomCode) || !validatePlayerId(playerId)) {
+        return errorResponse('Room code and player ID required', 400);
+      }
+
+      const room = await db.get(`room:${roomCode}`);
+
+      if (!room) {
+        return errorResponse('Room not found', 404);
+      }
+
+      // Check if player is room creator
+      const isCreator = await isRoomCreator(roomCode, playerId);
+      if (!isCreator) {
+        return errorResponse(
+          'Only room creator can delete breakout rooms',
+          403
+        );
+      }
+
+      room.breakoutRooms = [];
+
+      await db.set(`room:${roomCode}`, room);
+      await publishRoomUpdate(roomCode, room);
+      return jsonResponse({ room });
+    }
+
     // Admin endpoints
     // Verify admin token
-    if (path === "/admin/verify" && method === "POST") {
+    if (path === '/admin/verify' && method === 'POST') {
       const adminInfo = await verifyAdminToken(event.headers.authorization);
       if (!adminInfo) {
-        return errorResponse("Unauthorized", 401);
+        return errorResponse('Unauthorized', 401);
       }
       return jsonResponse({ isAdmin: adminInfo.isAdmin });
     }
 
     // Get session history
-    if (path === "/admin/sessions" && method === "GET") {
+    if (path === '/admin/sessions' && method === 'GET') {
       const adminInfo = await verifyAdminToken(event.headers.authorization);
       if (!adminInfo || !adminInfo.isAdmin) {
-        return errorResponse("Unauthorized", 401);
+        return errorResponse('Unauthorized', 401);
       }
 
       const sessions = await db.getSessionsByAdmin(adminInfo.uid);
@@ -486,10 +963,10 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // Get analytics
-    if (path === "/admin/analytics" && method === "GET") {
+    if (path === '/admin/analytics' && method === 'GET') {
       const adminInfo = await verifyAdminToken(event.headers.authorization);
       if (!adminInfo || !adminInfo.isAdmin) {
-        return errorResponse("Unauthorized", 401);
+        return errorResponse('Unauthorized', 401);
       }
 
       const analytics = await db.getAnalyticsByAdmin(adminInfo.uid);
@@ -497,10 +974,12 @@ const handler: Handler = async (event: HandlerEvent) => {
     }
 
     // 404 for unknown routes
-    return errorResponse("Not found", 404);
-  } catch (error: any) {
-    console.error("API Error:", error);
-    return errorResponse(error.message || "Internal server error", 500);
+    return errorResponse('Not found', 404);
+  } catch (error: unknown) {
+    console.error('API Error:', error);
+    const message =
+      error instanceof Error ? error.message : 'Internal server error';
+    return errorResponse(message, 500);
   }
 };
 

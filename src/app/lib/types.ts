@@ -23,9 +23,20 @@ export interface Player {
   lastSeen: number;
 }
 
+export interface BreakoutRoom {
+  id: string;
+  name: string;
+  code: string;
+  players: Player[];
+  revealed: boolean;
+  createdAt: number;
+}
+
 export interface Room {
   code: string;
   players: Player[];
   revealed: boolean;
   createdAt: number;
+  creatorId?: string;
+  breakoutRooms?: BreakoutRoom[];
 }

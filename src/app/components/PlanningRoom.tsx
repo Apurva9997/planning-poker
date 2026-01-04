@@ -6,13 +6,33 @@ import {
   LogOut,
   RotateCcw,
   Share2,
+  Users,
+  X,
+  Plus,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useAdminAuth } from '../lib/adminAuth';
+import type { BreakoutRoom } from '../lib/types';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
+import { Input } from './ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 
 export interface Player {
   id: string;
@@ -34,6 +54,15 @@ interface PlanningRoomProps {
   isRevealing?: boolean;
   isResetting?: boolean;
   isVoting?: boolean;
+  isRoomCreator?: boolean;
+  breakoutRooms?: BreakoutRoom[];
+  currentBreakoutRoomId?: string | null;
+  onCreateBreakoutRooms?: (numBreakouts: number) => void;
+  onDeleteBreakoutRooms?: () => void;
+  onJoinBreakoutRoom?: (breakoutRoomId: string) => void;
+  onLeaveBreakoutRoom?: () => void;
+  isCreatingBreakouts?: boolean;
+  isDeletingBreakouts?: boolean;
 }
 
 const CARD_VALUES = ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕'];
@@ -50,8 +79,20 @@ export function PlanningRoom({
   isRevealing = false,
   isResetting = false,
   isVoting = false,
+  isRoomCreator = false,
+  breakoutRooms = [],
+  currentBreakoutRoomId = null,
+  onCreateBreakoutRooms,
+  onDeleteBreakoutRooms,
+  onJoinBreakoutRoom,
+  onLeaveBreakoutRoom,
+  isCreatingBreakouts = false,
+  isDeletingBreakouts = false,
 }: PlanningRoomProps) {
   const [shareUrlCopied, setShareUrlCopied] = useState(false);
+  const [showCreateBreakoutDialog, setShowCreateBreakoutDialog] =
+    useState(false);
+  const [numBreakouts, setNumBreakouts] = useState(2);
   const { adminUser, isLoading: authLoading } = useAdminAuth();
 
   const handleShareUrl = async () => {
@@ -61,7 +102,7 @@ export function PlanningRoom({
       setShareUrlCopied(true);
       toast.success('Room URL copied!');
       setTimeout(() => setShareUrlCopied(false), 2000);
-    } catch (err) {
+    } catch {
       toast.error('Failed to copy URL');
     }
   };
@@ -82,6 +123,23 @@ export function PlanningRoom({
     return (sum / numericVotes.length).toFixed(1);
   };
 
+  const handleCreateBreakouts = () => {
+    if (onCreateBreakoutRooms && numBreakouts >= 2) {
+      onCreateBreakoutRooms(numBreakouts);
+      setShowCreateBreakoutDialog(false);
+      setNumBreakouts(2);
+    }
+  };
+
+  const currentBreakoutRoom = currentBreakoutRoomId
+    ? breakoutRooms.find((br) => br.id === currentBreakoutRoomId)
+    : null;
+
+  // Find which breakout room the current player is in
+  const playerBreakoutRoom = breakoutRooms.find((br) =>
+    br.players.some((p) => p.id === currentPlayer.id)
+  );
+
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-100 overflow-hidden">
       <div className="flex-1 flex flex-col min-h-0 max-w-6xl mx-auto w-full p-4 sm:p-6">
@@ -91,7 +149,9 @@ export function PlanningRoom({
             <h1 className="text-2xl sm:text-3xl">🎴 Planning Poker</h1>
             <div className="flex items-center gap-2">
               <span className="font-mono tracking-wider text-sm sm:text-base px-2 py-1 bg-white rounded-md border border-gray-200">
-                {roomCode}
+                {currentBreakoutRoom
+                  ? `${roomCode} - ${currentBreakoutRoom.name}`
+                  : roomCode}
               </span>
               <Button
                 variant="outline"
@@ -142,6 +202,92 @@ export function PlanningRoom({
             </Button>
           </div>
         </div>
+
+        {/* Breakout Room Selector */}
+        {breakoutRooms.length > 0 && (
+          <Card className="flex-shrink-0 mb-4">
+            <CardContent className="py-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium">Room:</span>
+                  <Select
+                    value={currentBreakoutRoomId || 'main'}
+                    onValueChange={(value) => {
+                      if (value === 'main') {
+                        onLeaveBreakoutRoom?.();
+                      } else {
+                        onJoinBreakoutRoom?.(value);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="main">Main Room</SelectItem>
+                      {breakoutRooms.map((br) => (
+                        <SelectItem key={br.id} value={br.id}>
+                          {br.name} ({br.players.length} players)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {playerBreakoutRoom && !currentBreakoutRoomId && (
+                    <Badge variant="outline" className="text-xs">
+                      You&apos;re in {playerBreakoutRoom.name}
+                    </Badge>
+                  )}
+                </div>
+                {isRoomCreator && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onDeleteBreakoutRooms}
+                    disabled={isDeletingBreakouts}
+                    className="text-xs"
+                  >
+                    {isDeletingBreakouts ? (
+                      <>
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current mr-2"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <X className="size-3 mr-2" />
+                        Delete Breakout Rooms
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Breakout Room Management (Creator Only) */}
+        {isRoomCreator && breakoutRooms.length === 0 && (
+          <Card className="flex-shrink-0 mb-4">
+            <CardContent className="py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="size-4 text-gray-600" />
+                  <span className="text-sm font-medium">
+                    Split into smaller groups for faster estimation
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCreateBreakoutDialog(true)}
+                  className="gap-2"
+                >
+                  <Plus className="size-4" />
+                  Create Breakout Rooms
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Status Bar - Fixed height */}
         <Card className="flex-shrink-0 mb-4 sm:mb-6">
@@ -210,12 +356,81 @@ export function PlanningRoom({
           </CardContent>
         </Card>
 
+        {/* Main Room Overview - Show breakout rooms when not in one */}
+        {!currentBreakoutRoomId && breakoutRooms.length > 0 && (
+          <Card className="flex-shrink-0 mb-4">
+            <CardContent className="py-4">
+              <h2 className="text-lg font-semibold mb-3">Breakout Rooms</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {breakoutRooms.map((br) => {
+                  const brVotingPlayers = br.players.filter(
+                    (p) => !p.isObserver
+                  );
+                  const brHasVoted = brVotingPlayers.filter(
+                    (p) => p.vote !== null
+                  ).length;
+                  const brAllVoted =
+                    brHasVoted === brVotingPlayers.length &&
+                    brVotingPlayers.length > 0;
+
+                  return (
+                    <Card
+                      key={br.id}
+                      className={`cursor-pointer transition-all hover:shadow-md ${
+                        playerBreakoutRoom?.id === br.id
+                          ? 'ring-2 ring-blue-500'
+                          : ''
+                      }`}
+                      onClick={() => onJoinBreakoutRoom?.(br.id)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold">{br.name}</h3>
+                          <Badge variant="secondary" className="text-xs">
+                            {br.players.length} players
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-gray-600 mb-2">
+                          {brHasVoted} / {brVotingPlayers.length} voted
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              br.revealed
+                                ? 'default'
+                                : brAllVoted
+                                  ? 'outline'
+                                  : 'secondary'
+                            }
+                            className="text-xs"
+                          >
+                            {br.revealed
+                              ? 'Revealed'
+                              : brAllVoted
+                                ? 'Ready'
+                                : 'Voting'}
+                          </Badge>
+                          {playerBreakoutRoom?.id === br.id && (
+                            <Badge variant="outline" className="text-xs">
+                              Your Room
+                            </Badge>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Main Content Area - Flexible, scrollable */}
         <div className="flex-1 flex flex-col min-h-0 gap-4 sm:gap-6">
           {/* Players Grid - Scrollable */}
           <div className="flex-1 min-h-0 flex flex-col">
             <h2 className="mb-3 sm:mb-4 text-lg sm:text-xl font-semibold flex-shrink-0">
-              Players
+              {currentBreakoutRoom ? 'Breakout Room Players' : 'Players'}
             </h2>
             <div className="flex-1 overflow-y-auto pr-2 -mr-2">
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 pb-2 p-1">
@@ -291,6 +506,62 @@ export function PlanningRoom({
           </div>
         </div>
       </div>
+
+      {/* Create Breakout Rooms Dialog */}
+      <Dialog
+        open={showCreateBreakoutDialog}
+        onOpenChange={setShowCreateBreakoutDialog}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Breakout Rooms</DialogTitle>
+            <DialogDescription>
+              Split players into smaller groups for parallel estimation. Players
+              will be automatically assigned evenly across breakout rooms.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium mb-2 block">
+              Number of Breakout Rooms
+            </label>
+            <Input
+              type="number"
+              min="2"
+              max="10"
+              value={numBreakouts}
+              onChange={(e) =>
+                setNumBreakouts(
+                  Math.max(2, Math.min(10, parseInt(e.target.value) || 2))
+                )
+              }
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              Minimum 2, maximum 10. At least 2 players per room required.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateBreakoutDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateBreakouts}
+              disabled={isCreatingBreakouts || numBreakouts < 2}
+            >
+              {isCreatingBreakouts ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                  Creating...
+                </>
+              ) : (
+                'Create'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

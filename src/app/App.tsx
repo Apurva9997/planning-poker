@@ -16,12 +16,15 @@ import {
 } from './lib/analytics';
 import * as api from './lib/api';
 import { subscribeToRoom, unsubscribeAll } from './lib/realtime';
+import type { BreakoutRoom } from './lib/types';
 
 interface Room {
   code: string;
   players: Player[];
   revealed: boolean;
   createdAt: number;
+  creatorId?: string;
+  breakoutRooms?: BreakoutRoom[];
 }
 
 function generatePlayerId(): string {
@@ -39,6 +42,14 @@ export default function App() {
   const [isRevealing, setIsRevealing] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
+  const [currentBreakoutRoomId, setCurrentBreakoutRoomId] = useState<
+    string | null
+  >(null);
+  const [isCreatingBreakouts, setIsCreatingBreakouts] = useState(false);
+  const [isDeletingBreakouts, setIsDeletingBreakouts] = useState(false);
+  const [isBreakoutVoting, setIsBreakoutVoting] = useState(false);
+  const [isBreakoutRevealing, setIsBreakoutRevealing] = useState(false);
+  const [isBreakoutResetting, setIsBreakoutResetting] = useState(false);
 
   // Track initial page view
   useEffect(() => {
@@ -48,10 +59,13 @@ export default function App() {
   // Load from URL or localStorage on mount
   useEffect(() => {
     const urlPath = window.location.pathname;
-    const roomCodeMatch = urlPath.match(/^\/room\/([A-Z0-9]{6})$/i);
+    const roomCodeMatch = urlPath.match(
+      /^\/room\/([A-Z0-9]{6})(?:\/breakout\/([a-z0-9]+))?$/i
+    );
 
     if (roomCodeMatch) {
       const roomCode = roomCodeMatch[1].toUpperCase();
+      const breakoutId = roomCodeMatch[2] || null;
       // Check if we have a saved player ID for this room
       const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
       const savedRoomCode = localStorage.getItem('planningPokerRoom');
@@ -60,6 +74,7 @@ export default function App() {
         // We have a saved session for this room
         setCurrentRoom(roomCode);
         setCurrentPlayerId(savedPlayerId);
+        setCurrentBreakoutRoomId(breakoutId);
         setIsLoading(true);
         api
           .getRoom(roomCode)
@@ -69,6 +84,16 @@ export default function App() {
             );
             if (playerExists) {
               setRoomData(room);
+              // Validate breakout room ID if provided
+              if (breakoutId && room.breakoutRooms) {
+                const breakoutExists = room.breakoutRooms.some(
+                  (br) => br.id === breakoutId
+                );
+                if (!breakoutExists) {
+                  setCurrentBreakoutRoomId(null);
+                  window.history.replaceState({}, '', `/room/${roomCode}`);
+                }
+              }
             } else {
               // Player not in room, clear saved data
               console.log('Player no longer in saved room, clearing session');
@@ -76,18 +101,20 @@ export default function App() {
               localStorage.removeItem('planningPokerPlayerId');
               setCurrentRoom(null);
               setCurrentPlayerId(null);
+              setCurrentBreakoutRoomId(null);
               // Update URL to home
               window.history.replaceState({}, '', '/');
               trackPageView('/', 'Home');
             }
             setIsLoading(false);
           })
-          .catch((err) => {
+          .catch(() => {
             console.log('Saved room not found, clearing session');
             localStorage.removeItem('planningPokerRoom');
             localStorage.removeItem('planningPokerPlayerId');
             setCurrentRoom(null);
             setCurrentPlayerId(null);
+            setCurrentBreakoutRoomId(null);
             window.history.replaceState({}, '', '/');
             trackPageView('/', 'Home');
             setIsLoading(false);
@@ -96,6 +123,7 @@ export default function App() {
         // No saved session, but we have a room code in URL - user needs to join
         setCurrentRoom(null);
         setCurrentPlayerId(null);
+        setCurrentBreakoutRoomId(null);
         setIsLoading(false);
       }
     } else {
@@ -131,7 +159,7 @@ export default function App() {
             }
             setIsLoading(false);
           })
-          .catch((err) => {
+          .catch(() => {
             console.log('Saved room not found, clearing session');
             // Clear invalid saved data - don't show error toast as this is expected
             localStorage.removeItem('planningPokerRoom');
@@ -151,24 +179,29 @@ export default function App() {
     const handlePopState = () => {
       const urlPath = window.location.pathname;
       trackPageView(urlPath, document.title);
-      const roomCodeMatch = urlPath.match(/^\/room\/([A-Z0-9]{6})$/i);
+      const roomCodeMatch = urlPath.match(
+        /^\/room\/([A-Z0-9]{6})(?:\/breakout\/([a-z0-9]+))?$/i
+      );
 
       if (!roomCodeMatch) {
         // Navigated to home, clear room state
         setCurrentRoom(null);
         setCurrentPlayerId(null);
         setRoomData(null);
+        setCurrentBreakoutRoomId(null);
         localStorage.removeItem('planningPokerRoom');
         localStorage.removeItem('planningPokerPlayerId');
       } else {
         // Navigated to a room URL, try to restore session
         const roomCode = roomCodeMatch[1].toUpperCase();
+        const breakoutId = roomCodeMatch[2] || null;
         const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
         const savedRoomCode = localStorage.getItem('planningPokerRoom');
 
         if (savedPlayerId && savedRoomCode === roomCode) {
           setCurrentRoom(roomCode);
           setCurrentPlayerId(savedPlayerId);
+          setCurrentBreakoutRoomId(breakoutId);
           setIsLoading(true);
           api
             .getRoom(roomCode)
@@ -178,9 +211,20 @@ export default function App() {
               );
               if (playerExists) {
                 setRoomData(room);
+                // Validate breakout room ID if provided
+                if (breakoutId && room.breakoutRooms) {
+                  const breakoutExists = room.breakoutRooms.some(
+                    (br) => br.id === breakoutId
+                  );
+                  if (!breakoutExists) {
+                    setCurrentBreakoutRoomId(null);
+                    window.history.replaceState({}, '', `/room/${roomCode}`);
+                  }
+                }
               } else {
                 setCurrentRoom(null);
                 setCurrentPlayerId(null);
+                setCurrentBreakoutRoomId(null);
                 localStorage.removeItem('planningPokerRoom');
                 localStorage.removeItem('planningPokerPlayerId');
               }
@@ -189,6 +233,7 @@ export default function App() {
             .catch(() => {
               setCurrentRoom(null);
               setCurrentPlayerId(null);
+              setCurrentBreakoutRoomId(null);
               localStorage.removeItem('planningPokerRoom');
               localStorage.removeItem('planningPokerPlayerId');
               trackPageView('/', 'Home');
@@ -198,6 +243,7 @@ export default function App() {
           setCurrentRoom(null);
           setCurrentPlayerId(null);
           setRoomData(null);
+          setCurrentBreakoutRoomId(null);
         }
       }
     };
@@ -409,6 +455,7 @@ export default function App() {
       setCurrentRoom(null);
       setCurrentPlayerId(null);
       setRoomData(null);
+      setCurrentBreakoutRoomId(null);
 
       localStorage.removeItem('planningPokerRoom');
       localStorage.removeItem('planningPokerPlayerId');
@@ -422,6 +469,137 @@ export default function App() {
     } catch (err) {
       console.error('Failed to leave room:', err);
       toast.error('Failed to leave room. Please try again.');
+    }
+  };
+
+  const handleCreateBreakoutRooms = async (numBreakouts: number) => {
+    if (!currentRoom || !currentPlayerId) return;
+
+    setIsCreatingBreakouts(true);
+    try {
+      const room = await api.createBreakoutRooms(
+        currentRoom,
+        currentPlayerId,
+        numBreakouts
+      );
+      setRoomData(room);
+      toast.success(`Created ${numBreakouts} breakout rooms!`);
+    } catch (err: unknown) {
+      console.error('Failed to create breakout rooms:', err);
+      const message =
+        err instanceof Error ? err.message : 'Failed to create breakout rooms.';
+      toast.error(message);
+    } finally {
+      setIsCreatingBreakouts(false);
+    }
+  };
+
+  const handleDeleteBreakoutRooms = async () => {
+    if (!currentRoom || !currentPlayerId) return;
+
+    setIsDeletingBreakouts(true);
+    try {
+      const room = await api.deleteBreakoutRooms(currentRoom, currentPlayerId);
+      setRoomData(room);
+      setCurrentBreakoutRoomId(null);
+      window.history.pushState({}, '', `/room/${currentRoom}`);
+      toast.success('Breakout rooms deleted!');
+    } catch (err: unknown) {
+      console.error('Failed to delete breakout rooms:', err);
+      const message =
+        err instanceof Error ? err.message : 'Failed to delete breakout rooms.';
+      toast.error(message);
+    } finally {
+      setIsDeletingBreakouts(false);
+    }
+  };
+
+  const handleJoinBreakoutRoom = async (breakoutRoomId: string) => {
+    if (!currentRoom || !currentPlayerId) return;
+
+    try {
+      const room = await api.joinBreakoutRoom(
+        currentRoom,
+        currentPlayerId,
+        breakoutRoomId
+      );
+      setRoomData(room);
+      setCurrentBreakoutRoomId(breakoutRoomId);
+      window.history.pushState(
+        {},
+        '',
+        `/room/${currentRoom}/breakout/${breakoutRoomId}`
+      );
+    } catch (err: unknown) {
+      console.error('Failed to join breakout room:', err);
+      const message =
+        err instanceof Error ? err.message : 'Failed to join breakout room.';
+      toast.error(message);
+    }
+  };
+
+  const handleLeaveBreakoutRoom = async () => {
+    if (!currentRoom || !currentPlayerId) return;
+
+    try {
+      const room = await api.leaveBreakoutRoom(currentRoom, currentPlayerId);
+      setRoomData(room);
+      setCurrentBreakoutRoomId(null);
+      window.history.pushState({}, '', `/room/${currentRoom}`);
+    } catch (err: unknown) {
+      console.error('Failed to leave breakout room:', err);
+      const message =
+        err instanceof Error ? err.message : 'Failed to leave breakout room.';
+      toast.error(message);
+    }
+  };
+
+  const handleBreakoutVote = async (value: string | null) => {
+    if (!currentRoom || !currentPlayerId || !currentBreakoutRoomId) return;
+
+    setIsBreakoutVoting(true);
+    try {
+      await api.submitBreakoutVote(
+        currentRoom,
+        currentBreakoutRoomId,
+        currentPlayerId,
+        value
+      );
+    } catch (err) {
+      console.error('Failed to submit breakout vote:', err);
+      toast.error('Failed to submit vote. Please try again.');
+    } finally {
+      setIsBreakoutVoting(false);
+    }
+  };
+
+  const handleBreakoutReveal = async () => {
+    if (!currentRoom || !currentBreakoutRoomId) return;
+
+    setIsBreakoutRevealing(true);
+    try {
+      await api.revealBreakoutVotes(currentRoom, currentBreakoutRoomId);
+      toast.success('Votes revealed!');
+    } catch (err) {
+      console.error('Failed to reveal breakout votes:', err);
+      toast.error('Failed to reveal votes. Please try again.');
+    } finally {
+      setIsBreakoutRevealing(false);
+    }
+  };
+
+  const handleBreakoutReset = async () => {
+    if (!currentRoom || !currentBreakoutRoomId) return;
+
+    setIsBreakoutResetting(true);
+    try {
+      await api.resetBreakoutRound(currentRoom, currentBreakoutRoomId);
+      toast.success('Round reset!');
+    } catch (err) {
+      console.error('Failed to reset breakout round:', err);
+      toast.error('Failed to reset round. Please try again.');
+    } finally {
+      setIsBreakoutResetting(false);
     }
   };
 
@@ -443,7 +621,9 @@ export default function App() {
 
   // Extract room code from URL if present
   const urlPath = window.location.pathname;
-  const roomCodeMatch = urlPath.match(/^\/room\/([A-Z0-9]{6})$/i);
+  const roomCodeMatch = urlPath.match(
+    /^\/room\/([A-Z0-9]{6})(?:\/breakout\/([a-z0-9]+))?$/i
+  );
   const urlRoomCode = roomCodeMatch ? roomCodeMatch[1].toUpperCase() : null;
 
   // Handle analytics route
@@ -477,20 +657,51 @@ export default function App() {
     );
   }
 
+  // Determine if current player is room creator
+  const isRoomCreator =
+    roomData.creatorId === currentPlayerId ||
+    (!roomData.creatorId && roomData.players[0]?.id === currentPlayerId);
+
+  // Get current breakout room if viewing one
+  const currentBreakoutRoom = currentBreakoutRoomId
+    ? roomData.breakoutRooms?.find((br) => br.id === currentBreakoutRoomId)
+    : null;
+
+  // Determine which players to show and voting state
+  const displayPlayers = currentBreakoutRoom
+    ? currentBreakoutRoom.players
+    : roomData.players;
+  const displayRevealed = currentBreakoutRoom
+    ? currentBreakoutRoom.revealed
+    : roomData.revealed;
+
+  // Get current player in context (main room or breakout room)
+  const displayCurrentPlayer =
+    displayPlayers.find((p) => p.id === currentPlayerId) || currentPlayer;
+
   return (
     <>
       <PlanningRoom
         roomCode={roomData.code}
-        currentPlayer={currentPlayer}
-        players={roomData.players}
-        revealed={roomData.revealed}
-        onVote={handleVote}
-        onReveal={handleReveal}
-        onReset={handleReset}
+        currentPlayer={displayCurrentPlayer}
+        players={displayPlayers}
+        revealed={displayRevealed}
+        onVote={currentBreakoutRoom ? handleBreakoutVote : handleVote}
+        onReveal={currentBreakoutRoom ? handleBreakoutReveal : handleReveal}
+        onReset={currentBreakoutRoom ? handleBreakoutReset : handleReset}
         onLeave={handleLeave}
-        isRevealing={isRevealing}
-        isResetting={isResetting}
-        isVoting={isVoting}
+        isRevealing={currentBreakoutRoom ? isBreakoutRevealing : isRevealing}
+        isResetting={currentBreakoutRoom ? isBreakoutResetting : isResetting}
+        isVoting={currentBreakoutRoom ? isBreakoutVoting : isVoting}
+        isRoomCreator={isRoomCreator}
+        breakoutRooms={roomData.breakoutRooms || []}
+        currentBreakoutRoomId={currentBreakoutRoomId}
+        onCreateBreakoutRooms={handleCreateBreakoutRooms}
+        onDeleteBreakoutRooms={handleDeleteBreakoutRooms}
+        onJoinBreakoutRoom={handleJoinBreakoutRoom}
+        onLeaveBreakoutRoom={handleLeaveBreakoutRoom}
+        isCreatingBreakouts={isCreatingBreakouts}
+        isDeletingBreakouts={isDeletingBreakouts}
       />
       <Toaster />
     </>
