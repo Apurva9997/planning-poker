@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { HomePage } from "./components/HomePage";
-import { PlanningRoom, Player } from "./components/PlanningRoom";
-import { Toaster } from "./components/ui/sonner";
-import { useAdminAuth } from "./lib/adminAuth";
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import { HomePage } from './components/HomePage';
+import { PlanningRoom, Player } from './components/PlanningRoom';
+import { Toaster } from './components/ui/sonner';
+import { useAdminAuth } from './lib/adminAuth';
 import {
   trackPageView,
   trackRoomCreated,
@@ -12,9 +13,9 @@ import {
   trackRoundReset,
   trackVoteSubmitted,
   trackVotesRevealed,
-} from "./lib/analytics";
-import * as api from "./lib/api";
-import { subscribeToRoom, unsubscribeAll } from "./lib/realtime";
+} from './lib/analytics';
+import * as api from './lib/api';
+import { subscribeToRoom, unsubscribeAll } from './lib/realtime';
 
 interface Room {
   code: string;
@@ -28,7 +29,7 @@ function generatePlayerId(): string {
 }
 
 export default function App() {
-  const { adminUser } = useAdminAuth();
+  const { adminUser, isAdmin, getIdToken } = useAdminAuth();
   const [currentRoom, setCurrentRoom] = useState<string | null>(null);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<Room | null>(null);
@@ -52,8 +53,8 @@ export default function App() {
     if (roomCodeMatch) {
       const roomCode = roomCodeMatch[1].toUpperCase();
       // Check if we have a saved player ID for this room
-      const savedPlayerId = localStorage.getItem("planningPokerPlayerId");
-      const savedRoomCode = localStorage.getItem("planningPokerRoom");
+      const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
+      const savedRoomCode = localStorage.getItem('planningPokerRoom');
 
       if (savedPlayerId && savedRoomCode === roomCode) {
         // We have a saved session for this room
@@ -70,25 +71,25 @@ export default function App() {
               setRoomData(room);
             } else {
               // Player not in room, clear saved data
-              console.log("Player no longer in saved room, clearing session");
-              localStorage.removeItem("planningPokerRoom");
-              localStorage.removeItem("planningPokerPlayerId");
+              console.log('Player no longer in saved room, clearing session');
+              localStorage.removeItem('planningPokerRoom');
+              localStorage.removeItem('planningPokerPlayerId');
               setCurrentRoom(null);
               setCurrentPlayerId(null);
               // Update URL to home
-              window.history.replaceState({}, "", "/");
-              trackPageView("/", "Home");
+              window.history.replaceState({}, '', '/');
+              trackPageView('/', 'Home');
             }
             setIsLoading(false);
           })
           .catch((err) => {
-            console.log("Saved room not found, clearing session");
-            localStorage.removeItem("planningPokerRoom");
-            localStorage.removeItem("planningPokerPlayerId");
+            console.log('Saved room not found, clearing session');
+            localStorage.removeItem('planningPokerRoom');
+            localStorage.removeItem('planningPokerPlayerId');
             setCurrentRoom(null);
             setCurrentPlayerId(null);
-            window.history.replaceState({}, "", "/");
-            trackPageView("/", "Home");
+            window.history.replaceState({}, '', '/');
+            trackPageView('/', 'Home');
             setIsLoading(false);
           });
       } else {
@@ -99,15 +100,15 @@ export default function App() {
       }
     } else {
       // No room code in URL, check localStorage
-      const savedRoomCode = localStorage.getItem("planningPokerRoom");
-      const savedPlayerId = localStorage.getItem("planningPokerPlayerId");
+      const savedRoomCode = localStorage.getItem('planningPokerRoom');
+      const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
 
       if (savedRoomCode && savedPlayerId) {
         setCurrentRoom(savedRoomCode);
         setCurrentPlayerId(savedPlayerId);
         setIsLoading(true);
         // Update URL to match saved room
-        window.history.replaceState({}, "", `/room/${savedRoomCode}`);
+        window.history.replaceState({}, '', `/room/${savedRoomCode}`);
         trackPageView(`/room/${savedRoomCode}`, `Room ${savedRoomCode}`);
         // Try to fetch the room data
         api
@@ -121,24 +122,24 @@ export default function App() {
               setRoomData(room);
             } else {
               // Player not in room, clear saved data
-              console.log("Player no longer in saved room, clearing session");
-              localStorage.removeItem("planningPokerRoom");
-              localStorage.removeItem("planningPokerPlayerId");
+              console.log('Player no longer in saved room, clearing session');
+              localStorage.removeItem('planningPokerRoom');
+              localStorage.removeItem('planningPokerPlayerId');
               setCurrentRoom(null);
               setCurrentPlayerId(null);
-              window.history.replaceState({}, "", "/");
+              window.history.replaceState({}, '', '/');
             }
             setIsLoading(false);
           })
           .catch((err) => {
-            console.log("Saved room not found, clearing session");
+            console.log('Saved room not found, clearing session');
             // Clear invalid saved data - don't show error toast as this is expected
-            localStorage.removeItem("planningPokerRoom");
-            localStorage.removeItem("planningPokerPlayerId");
+            localStorage.removeItem('planningPokerRoom');
+            localStorage.removeItem('planningPokerPlayerId');
             setCurrentRoom(null);
             setCurrentPlayerId(null);
-            window.history.replaceState({}, "", "/");
-            trackPageView("/", "Home");
+            window.history.replaceState({}, '', '/');
+            trackPageView('/', 'Home');
             setIsLoading(false);
           });
       }
@@ -157,13 +158,13 @@ export default function App() {
         setCurrentRoom(null);
         setCurrentPlayerId(null);
         setRoomData(null);
-        localStorage.removeItem("planningPokerRoom");
-        localStorage.removeItem("planningPokerPlayerId");
+        localStorage.removeItem('planningPokerRoom');
+        localStorage.removeItem('planningPokerPlayerId');
       } else {
         // Navigated to a room URL, try to restore session
         const roomCode = roomCodeMatch[1].toUpperCase();
-        const savedPlayerId = localStorage.getItem("planningPokerPlayerId");
-        const savedRoomCode = localStorage.getItem("planningPokerRoom");
+        const savedPlayerId = localStorage.getItem('planningPokerPlayerId');
+        const savedRoomCode = localStorage.getItem('planningPokerRoom');
 
         if (savedPlayerId && savedRoomCode === roomCode) {
           setCurrentRoom(roomCode);
@@ -180,17 +181,17 @@ export default function App() {
               } else {
                 setCurrentRoom(null);
                 setCurrentPlayerId(null);
-                localStorage.removeItem("planningPokerRoom");
-                localStorage.removeItem("planningPokerPlayerId");
+                localStorage.removeItem('planningPokerRoom');
+                localStorage.removeItem('planningPokerPlayerId');
               }
               setIsLoading(false);
             })
             .catch(() => {
               setCurrentRoom(null);
               setCurrentPlayerId(null);
-              localStorage.removeItem("planningPokerRoom");
-              localStorage.removeItem("planningPokerPlayerId");
-              trackPageView("/", "Home");
+              localStorage.removeItem('planningPokerRoom');
+              localStorage.removeItem('planningPokerPlayerId');
+              trackPageView('/', 'Home');
               setIsLoading(false);
             });
         } else {
@@ -201,8 +202,8 @@ export default function App() {
       }
     };
 
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // Subscribe to real-time room updates via Ably
@@ -220,21 +221,21 @@ export default function App() {
         // Check if current player still exists in the room
         const playerExists = room.players.some((p) => p.id === currentPlayerId);
         if (!playerExists) {
-          console.log("Player removed from room");
+          console.log('Player removed from room');
           setCurrentRoom(null);
           setCurrentPlayerId(null);
           setRoomData(null);
-          localStorage.removeItem("planningPokerRoom");
-          localStorage.removeItem("planningPokerPlayerId");
-          window.history.replaceState({}, "", "/");
-          trackPageView("/", "Home");
-          toast.info("You have been removed from the room");
+          localStorage.removeItem('planningPokerRoom');
+          localStorage.removeItem('planningPokerPlayerId');
+          window.history.replaceState({}, '', '/');
+          trackPageView('/', 'Home');
+          toast.info('You have been removed from the room');
           return;
         }
         setRoomData(room);
       })
       .catch((err) => {
-        console.error("Failed to fetch initial room state:", err);
+        console.error('Failed to fetch initial room state:', err);
         // Don't kick user out on initial fetch failure - Ably will handle updates
       });
 
@@ -244,14 +245,14 @@ export default function App() {
         // Check if current player still exists in the room
         const playerExists = room.players.some((p) => p.id === currentPlayerId);
         if (!playerExists) {
-          console.log("Player removed from room");
+          console.log('Player removed from room');
           setCurrentRoom(null);
           setCurrentPlayerId(null);
           setRoomData(null);
-          localStorage.removeItem("planningPokerRoom");
-          localStorage.removeItem("planningPokerPlayerId");
-          window.history.replaceState({}, "", "/");
-          toast.info("You have been removed from the room");
+          localStorage.removeItem('planningPokerRoom');
+          localStorage.removeItem('planningPokerPlayerId');
+          window.history.replaceState({}, '', '/');
+          toast.info('You have been removed from the room');
           return;
         }
         setRoomData(room);
@@ -261,8 +262,8 @@ export default function App() {
         unsubscribe();
       };
     } catch (error) {
-      console.error("Failed to subscribe to room updates:", error);
-      toast.error("Real-time updates unavailable. Please refresh the page.");
+      console.error('Failed to subscribe to room updates:', error);
+      toast.error('Real-time updates unavailable. Please refresh the page.');
       // Fallback to polling if Ably fails
       const pollInterval = setInterval(async () => {
         try {
@@ -275,16 +276,16 @@ export default function App() {
             setCurrentRoom(null);
             setCurrentPlayerId(null);
             setRoomData(null);
-            localStorage.removeItem("planningPokerRoom");
-            localStorage.removeItem("planningPokerPlayerId");
-            window.history.replaceState({}, "", "/");
-            trackPageView("/", "Home");
-            toast.info("You have been removed from the room");
+            localStorage.removeItem('planningPokerRoom');
+            localStorage.removeItem('planningPokerPlayerId');
+            window.history.replaceState({}, '', '/');
+            trackPageView('/', 'Home');
+            toast.info('You have been removed from the room');
             return;
           }
           setRoomData(room);
         } catch (err) {
-          console.error("Polling fallback failed:", err);
+          console.error('Polling fallback failed:', err);
         }
       }, 3000);
 
@@ -302,18 +303,18 @@ export default function App() {
       setCurrentPlayerId(playerId);
       setRoomData(room);
 
-      localStorage.setItem("planningPokerRoom", room.code);
-      localStorage.setItem("planningPokerPlayerId", playerId);
+      localStorage.setItem('planningPokerRoom', room.code);
+      localStorage.setItem('planningPokerPlayerId', playerId);
 
       // Update URL
-      window.history.pushState({}, "", `/room/${room.code}`);
+      window.history.pushState({}, '', `/room/${room.code}`);
       trackPageView(`/room/${room.code}`, `Room ${room.code}`);
       trackRoomCreated(room.code);
 
-      toast.success("Room created successfully!");
+      toast.success('Room created successfully!');
     } catch (err) {
-      console.error("Failed to create room:", err);
-      toast.error("Failed to create room. Please try again.");
+      console.error('Failed to create room:', err);
+      toast.error('Failed to create room. Please try again.');
     } finally {
       setIsCreatingRoom(false);
     }
@@ -329,18 +330,18 @@ export default function App() {
       setCurrentPlayerId(playerId);
       setRoomData(room);
 
-      localStorage.setItem("planningPokerRoom", room.code);
-      localStorage.setItem("planningPokerPlayerId", playerId);
+      localStorage.setItem('planningPokerRoom', room.code);
+      localStorage.setItem('planningPokerPlayerId', playerId);
 
       // Update URL
-      window.history.pushState({}, "", `/room/${room.code}`);
+      window.history.pushState({}, '', `/room/${room.code}`);
       trackPageView(`/room/${room.code}`, `Room ${room.code}`);
       trackRoomJoined(room.code);
 
-      toast.success("Joined room successfully!");
+      toast.success('Joined room successfully!');
     } catch (err) {
-      console.error("Failed to join room:", err);
-      toast.error("Failed to join room. Please try again.");
+      console.error('Failed to join room:', err);
+      toast.error('Failed to join room. Please try again.');
     } finally {
       setIsJoiningRoom(false);
     }
@@ -355,8 +356,8 @@ export default function App() {
       await api.submitVote(currentRoom, currentPlayerId, value);
       trackVoteSubmitted(currentRoom, value);
     } catch (err) {
-      console.error("Failed to submit vote:", err);
-      toast.error("Failed to submit vote. Please try again.");
+      console.error('Failed to submit vote:', err);
+      toast.error('Failed to submit vote. Please try again.');
     } finally {
       setIsVoting(false);
     }
@@ -370,10 +371,10 @@ export default function App() {
       // Room data will be updated via Ably subscription
       await api.revealVotes(currentRoom);
       trackVotesRevealed(currentRoom);
-      toast.success("Votes revealed!");
+      toast.success('Votes revealed!');
     } catch (err) {
-      console.error("Failed to reveal votes:", err);
-      toast.error("Failed to reveal votes. Please try again.");
+      console.error('Failed to reveal votes:', err);
+      toast.error('Failed to reveal votes. Please try again.');
     } finally {
       setIsRevealing(false);
     }
@@ -387,10 +388,10 @@ export default function App() {
       // Room data will be updated via Ably subscription
       await api.resetRound(currentRoom);
       trackRoundReset(currentRoom);
-      toast.success("Round reset!");
+      toast.success('Round reset!');
     } catch (err) {
-      console.error("Failed to reset round:", err);
-      toast.error("Failed to reset round. Please try again.");
+      console.error('Failed to reset round:', err);
+      toast.error('Failed to reset round. Please try again.');
     } finally {
       setIsResetting(false);
     }
@@ -409,18 +410,18 @@ export default function App() {
       setCurrentPlayerId(null);
       setRoomData(null);
 
-      localStorage.removeItem("planningPokerRoom");
-      localStorage.removeItem("planningPokerPlayerId");
+      localStorage.removeItem('planningPokerRoom');
+      localStorage.removeItem('planningPokerPlayerId');
 
       // Update URL to home
-      window.history.pushState({}, "", "/");
-      trackPageView("/", "Home");
+      window.history.pushState({}, '', '/');
+      trackPageView('/', 'Home');
       trackRoomLeft(currentRoom);
 
-      toast.success("Left room successfully!");
+      toast.success('Left room successfully!');
     } catch (err) {
-      console.error("Failed to leave room:", err);
-      toast.error("Failed to leave room. Please try again.");
+      console.error('Failed to leave room:', err);
+      toast.error('Failed to leave room. Please try again.');
     }
   };
 
@@ -444,6 +445,22 @@ export default function App() {
   const urlPath = window.location.pathname;
   const roomCodeMatch = urlPath.match(/^\/room\/([A-Z0-9]{6})$/i);
   const urlRoomCode = roomCodeMatch ? roomCodeMatch[1].toUpperCase() : null;
+
+  // Handle analytics route
+  if (urlPath === '/analytics' && isAdmin) {
+    return (
+      <>
+        <AnalyticsDashboard
+          onBack={() => {
+            window.history.pushState({}, '', '/');
+            trackPageView('/', 'Home');
+          }}
+          getIdToken={getIdToken}
+        />
+        <Toaster />
+      </>
+    );
+  }
 
   if (!currentRoom || !currentPlayer || !roomData) {
     return (

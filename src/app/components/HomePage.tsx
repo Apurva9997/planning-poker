@@ -1,7 +1,6 @@
 import { BarChart3, Plus, Shield, Users } from 'lucide-react';
 import { useState } from 'react';
 import { useAdminAuth } from '../lib/adminAuth';
-import { AnalyticsDashboard } from './AnalyticsDashboard';
 import { Button } from './ui/button';
 import {
   Card,
@@ -27,17 +26,10 @@ export function HomePage({
   isJoiningRoom = false,
   initialRoomCode,
 }: HomePageProps) {
-  const {
-    adminUser,
-    isLoading: authLoading,
-    isAdmin,
-    signIn,
-    signOut,
-    getIdToken,
-  } = useAdminAuth();
+  const { adminUser, isLoading: authLoading, signIn, signOut } = useAdminAuth();
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState(initialRoomCode || '');
-  const [mode, setMode] = useState<'select' | 'create' | 'join' | 'analytics'>(
+  const [mode, setMode] = useState<'select' | 'create' | 'join'>(
     initialRoomCode ? 'join' : 'select'
   );
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -65,16 +57,6 @@ export function HomePage({
     }
   };
 
-  // Show analytics dashboard if admin is logged in and viewing analytics
-  if (isAdmin && mode === 'analytics') {
-    return (
-      <AnalyticsDashboard
-        onBack={() => setMode('select')}
-        getIdToken={getIdToken}
-      />
-    );
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="w-full max-w-md">
@@ -83,8 +65,8 @@ export function HomePage({
           <p className="text-gray-600">Estimate together, deliver better</p>
         </div>
 
-        {/* Admin Section - Only show on select mode */}
-        {!authLoading && mode === 'select' && (
+        {/* Admin Section - Always show when not loading */}
+        {!authLoading && (
           <div className="mb-4">
             {adminUser ? (
               <Card className="mb-4">
@@ -106,13 +88,15 @@ export function HomePage({
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setMode('analytics')}
-                      >
-                        <BarChart3 className="size-4 mr-2" />
-                        Analytics
+                      <Button variant="outline" size="sm" asChild>
+                        <a
+                          href="/analytics"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <BarChart3 className="size-4 mr-2" />
+                          Analytics
+                        </a>
                       </Button>
                       <Button variant="outline" size="sm" onClick={signOut}>
                         Sign Out
