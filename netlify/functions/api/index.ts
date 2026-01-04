@@ -7,6 +7,7 @@
 
 import type { Handler, HandlerEvent } from "@netlify/functions";
 import Ably from "ably";
+import * as admin from "firebase-admin";
 import * as db from "./db";
 
 interface Player {
@@ -24,10 +25,43 @@ interface Room {
   createdAt: number;
 }
 
+// Initialize Firebase Admin
+let firebaseAdminInitialized = false;
+function initializeFirebaseAdmin() {
+  if (firebaseAdminInitialized || admin.apps.length > 0) {
+    return;
+  }
+  
+  try {
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (serviceAccount) {
+      try {
+        const serviceAccountJson = JSON.parse(serviceAccount);
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccountJson),
+        });
+        firebaseAdminInitialized = true;
+      } catch (parseError) {
+        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT:", parseError);
+      }
+    } else {
+      // Fallback: use default credentials if available (e.g., on Google Cloud)
+      try {
+        admin.initializeApp();
+        firebaseAdminInitialized = true;
+      } catch (initError) {
+        console.warn("Firebase Admin initialization failed - admin features will be disabled:", initError);
+      }
+    }
+  } catch (error) {
+    console.warn("Firebase Admin initialization failed - admin features will be disabled:", error);
+  }
+}
+
 // CORS headers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
 };
 
@@ -73,6 +107,46 @@ function jsonResponse(data: any, statusCode: number = 200) {
 // Error response helper
 function errorResponse(message: string, statusCode: number = 400) {
   return jsonResponse({ error: message }, statusCode);
+}
+
+// Verify Firebase ID token and check admin status
+async function verifyAdminToken(
+  authHeader: string | undefined
+): Promise<{ uid: string; email: string | null; isAdmin: boolean } | null> {
+  initializeFirebaseAdmin();
+  
+  if (!firebaseAdminInitialized || admin.apps.length === 0) {
+    console.error("Firebase Admin not initialized - cannot verify admin token");
+    return null;
+  }
+  
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const idToken = authHeader.split("Bearer ")[1];
+  if (!idToken) {
+    return null;
+  }
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const email = decodedToken.email || null;
+    
+    // Check if user is admin
+    const isAdmin = await db.isAdmin(uid);
+    
+    // If admin, ensure they're in the admin_users table
+    if (isAdmin) {
+      await db.createAdminUser(uid, email, decodedToken.name || null);
+    }
+    
+    return { uid, email, isAdmin };
+  } catch (error) {
+    console.error("Error verifying token:", error);
+    return null;
+  }
 }
 
 // Ably client for real-time updates
@@ -136,7 +210,7 @@ const handler: Handler = async (event: HandlerEvent) => {
 
     // Create room
     if (path === "/create-room" && method === "POST") {
-      const { playerName, playerId } = JSON.parse(event.body || "{}");
+      const { playerName, playerId, adminUid } = JSON.parse(event.body || "{}");
 
       if (!validatePlayerName(playerName) || !validatePlayerId(playerId)) {
         return errorResponse("Player name and ID required", 400);
@@ -173,6 +247,15 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
 
       await db.set(`room:${roomCode}`, newRoom);
+      
+      // Track admin session if admin created the room
+      if (adminUid) {
+        const isAdmin = await db.isAdmin(adminUid);
+        if (isAdmin) {
+          await db.createSession(roomCode, adminUid, 1);
+        }
+      }
+      
       await publishRoomUpdate(roomCode, newRoom);
       return jsonResponse({ room: newRoom });
     }
@@ -377,6 +460,38 @@ const handler: Handler = async (event: HandlerEvent) => {
       }
 
       return jsonResponse({ success: true });
+    }
+
+    // Admin endpoints
+    // Verify admin token
+    if (path === "/admin/verify" && method === "POST") {
+      const adminInfo = await verifyAdminToken(event.headers.authorization);
+      if (!adminInfo) {
+        return errorResponse("Unauthorized", 401);
+      }
+      return jsonResponse({ isAdmin: adminInfo.isAdmin });
+    }
+
+    // Get session history
+    if (path === "/admin/sessions" && method === "GET") {
+      const adminInfo = await verifyAdminToken(event.headers.authorization);
+      if (!adminInfo || !adminInfo.isAdmin) {
+        return errorResponse("Unauthorized", 401);
+      }
+
+      const sessions = await db.getSessionsByAdmin(adminInfo.uid);
+      return jsonResponse({ sessions });
+    }
+
+    // Get analytics
+    if (path === "/admin/analytics" && method === "GET") {
+      const adminInfo = await verifyAdminToken(event.headers.authorization);
+      if (!adminInfo || !adminInfo.isAdmin) {
+        return errorResponse("Unauthorized", 401);
+      }
+
+      const analytics = await db.getAnalyticsByAdmin(adminInfo.uid);
+      return jsonResponse(analytics);
     }
 
     // 404 for unknown routes

@@ -5,6 +5,7 @@ import { PlanningRoom, Player } from "./components/PlanningRoom";
 import { Toaster } from "./components/ui/sonner";
 import * as api from "./lib/api";
 import { subscribeToRoom, unsubscribeAll } from "./lib/realtime";
+import { useAdminAuth } from "./lib/adminAuth";
 
 interface Room {
   code: string;
@@ -18,6 +19,7 @@ function generatePlayerId(): string {
 }
 
 export default function App() {
+  const { adminUser } = useAdminAuth();
   const [currentRoom, setCurrentRoom] = useState<string | null>(null);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<Room | null>(null);
@@ -272,7 +274,7 @@ export default function App() {
     setIsCreatingRoom(true);
     try {
       const playerId = generatePlayerId();
-      const room = await api.createRoom(playerName, playerId);
+      const room = await api.createRoom(playerName, playerId, adminUser?.uid);
 
       setCurrentRoom(room.code);
       setCurrentPlayerId(playerId);
