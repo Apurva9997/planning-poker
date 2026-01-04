@@ -1,23 +1,56 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Multiplayer Planning Poker App</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <title>Planning Poker - Collaborative Estimation Tool</title>
+    <meta
+      name="description"
+      content="Run planning poker sessions with your team. Create rooms, vote on story points, and reveal estimates together in real-time. Free and easy to use."
+    />
+    <meta
+      name="keywords"
+      content="planning poker, agile estimation, story points, sprint planning, team estimation"
+    />
+    <meta
+      property="og:title"
+      content="Planning Poker - Collaborative Estimation Tool"
+    />
+    <meta
+      property="og:description"
+      content="Run planning poker sessions with your team. Create rooms, vote on story points, and reveal estimates together in real-time."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <meta
+      name="twitter:title"
+      content="Planning Poker - Collaborative Estimation Tool"
+    />
+    <meta
+      name="twitter:description"
+      content="Run planning poker sessions with your team. Create rooms, vote on story points, and reveal estimates together in real-time."
+    />
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-8HF5C45Y9D"></script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-8HF5C45Y9D"
+    ></script>
     <script>
       window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
+      function gtag() {
+        dataLayer.push(arguments);
+      }
       gtag('js', new Date());
       gtag('config', 'G-8HF5C45Y9D');
     </script>
   </head>
 
-    <body>
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-    </body>
-  </html>
-  
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
