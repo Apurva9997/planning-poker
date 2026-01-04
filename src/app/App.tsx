@@ -3,18 +3,18 @@ import { toast } from "sonner";
 import { HomePage } from "./components/HomePage";
 import { PlanningRoom, Player } from "./components/PlanningRoom";
 import { Toaster } from "./components/ui/sonner";
-import * as api from "./lib/api";
-import { subscribeToRoom, unsubscribeAll } from "./lib/realtime";
 import { useAdminAuth } from "./lib/adminAuth";
 import {
   trackPageView,
   trackRoomCreated,
   trackRoomJoined,
+  trackRoomLeft,
+  trackRoundReset,
   trackVoteSubmitted,
   trackVotesRevealed,
-  trackRoundReset,
-  trackRoomLeft,
 } from "./lib/analytics";
+import * as api from "./lib/api";
+import { subscribeToRoom, unsubscribeAll } from "./lib/realtime";
 
 interface Room {
   code: string;

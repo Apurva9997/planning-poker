@@ -31,7 +31,7 @@ function initializeFirebaseAdmin() {
   if (firebaseAdminInitialized || admin.apps.length > 0) {
     return;
   }
-  
+
   try {
     const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
     if (serviceAccount) {
@@ -50,11 +50,17 @@ function initializeFirebaseAdmin() {
         admin.initializeApp();
         firebaseAdminInitialized = true;
       } catch (initError) {
-        console.warn("Firebase Admin initialization failed - admin features will be disabled:", initError);
+        console.warn(
+          "Firebase Admin initialization failed - admin features will be disabled:",
+          initError
+        );
       }
     }
   } catch (error) {
-    console.warn("Firebase Admin initialization failed - admin features will be disabled:", error);
+    console.warn(
+      "Firebase Admin initialization failed - admin features will be disabled:",
+      error
+    );
   }
 }
 
@@ -114,12 +120,12 @@ async function verifyAdminToken(
   authHeader: string | undefined
 ): Promise<{ uid: string; email: string | null; isAdmin: boolean } | null> {
   initializeFirebaseAdmin();
-  
+
   if (!firebaseAdminInitialized || admin.apps.length === 0) {
     console.error("Firebase Admin not initialized - cannot verify admin token");
     return null;
   }
-  
+
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return null;
   }
@@ -133,16 +139,12 @@ async function verifyAdminToken(
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const uid = decodedToken.uid;
     const email = decodedToken.email || null;
-    
-    // Check if user is admin
-    const isAdmin = await db.isAdmin(uid);
-    
-    // If admin, ensure they're in the admin_users table
-    if (isAdmin) {
-      await db.createAdminUser(uid, email, decodedToken.name || null);
-    }
-    
-    return { uid, email, isAdmin };
+
+    // Automatically create admin user for any authenticated user
+    // This ensures all users who sign in are admins by default
+    await db.createAdminUser(uid, email, decodedToken.name || null);
+
+    return { uid, email, isAdmin: true };
   } catch (error) {
     console.error("Error verifying token:", error);
     return null;
@@ -247,7 +249,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
 
       await db.set(`room:${roomCode}`, newRoom);
-      
+
       // Track admin session if admin created the room
       if (adminUid) {
         const isAdmin = await db.isAdmin(adminUid);
@@ -255,7 +257,7 @@ const handler: Handler = async (event: HandlerEvent) => {
           await db.createSession(roomCode, adminUid, 1);
         }
       }
-      
+
       await publishRoomUpdate(roomCode, newRoom);
       return jsonResponse({ room: newRoom });
     }

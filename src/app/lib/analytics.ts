@@ -7,14 +7,14 @@ declare global {
   interface Window {
     dataLayer: unknown[];
     gtag: (
-      command: 'config' | 'event' | 'js' | 'set',
+      command: "config" | "event" | "js" | "set",
       targetId: string | Date,
       config?: Record<string, unknown>
     ) => void;
   }
 }
 
-const GA_MEASUREMENT_ID = 'G-8HF5C45Y9D';
+const GA_MEASUREMENT_ID = "G-8HF5C45Y9D";
 
 /**
  * Track a page view
@@ -22,11 +22,11 @@ const GA_MEASUREMENT_ID = 'G-8HF5C45Y9D';
  * @param pageTitle - Optional page title
  */
 export function trackPageView(pagePath: string, pageTitle?: string): void {
-  if (typeof window === 'undefined' || !window.gtag) {
+  if (typeof window === "undefined" || !window.gtag) {
     return;
   }
 
-  window.gtag('config', GA_MEASUREMENT_ID, {
+  window.gtag("config", GA_MEASUREMENT_ID, {
     page_path: pagePath,
     ...(pageTitle && { page_title: pageTitle }),
   });
@@ -41,18 +41,18 @@ export function trackEvent(
   eventName: string,
   eventParams?: Record<string, unknown>
 ): void {
-  if (typeof window === 'undefined' || !window.gtag) {
+  if (typeof window === "undefined" || !window.gtag) {
     return;
   }
 
-  window.gtag('event', eventName, eventParams);
+  window.gtag("event", eventName, eventParams);
 }
 
 /**
  * Track room creation
  */
 export function trackRoomCreated(roomCode: string): void {
-  trackEvent('room_created', {
+  trackEvent("room_created", {
     room_code: roomCode,
   });
 }
@@ -61,7 +61,7 @@ export function trackRoomCreated(roomCode: string): void {
  * Track room join
  */
 export function trackRoomJoined(roomCode: string): void {
-  trackEvent('room_joined', {
+  trackEvent("room_joined", {
     room_code: roomCode,
   });
 }
@@ -69,10 +69,13 @@ export function trackRoomJoined(roomCode: string): void {
 /**
  * Track vote submission
  */
-export function trackVoteSubmitted(roomCode: string, voteValue: string | null): void {
-  trackEvent('vote_submitted', {
+export function trackVoteSubmitted(
+  roomCode: string,
+  voteValue: string | null
+): void {
+  trackEvent("vote_submitted", {
     room_code: roomCode,
-    vote_value: voteValue || 'null',
+    vote_value: voteValue || "null",
   });
 }
 
@@ -80,7 +83,7 @@ export function trackVoteSubmitted(roomCode: string, voteValue: string | null): 
  * Track votes revealed
  */
 export function trackVotesRevealed(roomCode: string): void {
-  trackEvent('votes_revealed', {
+  trackEvent("votes_revealed", {
     room_code: roomCode,
   });
 }
@@ -89,7 +92,7 @@ export function trackVotesRevealed(roomCode: string): void {
  * Track round reset
  */
 export function trackRoundReset(roomCode: string): void {
-  trackEvent('round_reset', {
+  trackEvent("round_reset", {
     room_code: roomCode,
   });
 }
@@ -98,8 +101,7 @@ export function trackRoundReset(roomCode: string): void {
  * Track room leave
  */
 export function trackRoomLeft(roomCode: string): void {
-  trackEvent('room_left', {
+  trackEvent("room_left", {
     room_code: roomCode,
   });
 }
-
