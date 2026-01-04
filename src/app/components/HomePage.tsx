@@ -1,6 +1,5 @@
-import { BarChart3, Plus, Shield, Users } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import { useState } from 'react';
-import { useAdminAuth } from '../lib/adminAuth';
 import { Button } from './ui/button';
 import {
   Card,
@@ -26,13 +25,11 @@ export function HomePage({
   isJoiningRoom = false,
   initialRoomCode,
 }: HomePageProps) {
-  const { adminUser, isLoading: authLoading, signIn, signOut } = useAdminAuth();
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState(initialRoomCode || '');
   const [mode, setMode] = useState<'select' | 'create' | 'join'>(
     initialRoomCode ? 'join' : 'select'
   );
-  const [isSigningIn, setIsSigningIn] = useState(false);
 
   const handleCreate = () => {
     if (playerName.trim()) {
@@ -46,17 +43,6 @@ export function HomePage({
     }
   };
 
-  const handleAdminSignIn = async () => {
-    setIsSigningIn(true);
-    try {
-      await signIn();
-    } catch (error) {
-      console.error('Failed to sign in:', error);
-    } finally {
-      setIsSigningIn(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="w-full max-w-md">
@@ -65,8 +51,8 @@ export function HomePage({
           <p className="text-gray-600">Estimate together, deliver better</p>
         </div>
 
-        {/* Admin Section - Always show when not loading */}
-        {!authLoading && (
+        {/* Admin Section - Disabled */}
+        {/* {!authLoading && (
           <div className="mb-4">
             {adminUser ? (
               <Card className="mb-4">
@@ -130,7 +116,7 @@ export function HomePage({
               </Card>
             )}
           </div>
-        )}
+        )} */}
 
         {mode === 'select' && (
           <Card>
