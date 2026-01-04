@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+.netlify
+*.lock
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+

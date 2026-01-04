@@ -1,10 +1,16 @@
+import { BarChart3, Plus, Shield, Users } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Users, Plus, Shield, BarChart3 } from 'lucide-react';
 import { useAdminAuth } from '../lib/adminAuth';
 import { AnalyticsDashboard } from './AnalyticsDashboard';
+import { Button } from './ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from './ui/card';
+import { Input } from './ui/input';
 
 interface HomePageProps {
   onCreateRoom: (playerName: string) => void;
@@ -14,17 +20,26 @@ interface HomePageProps {
   initialRoomCode?: string;
 }
 
-export function HomePage({ 
-  onCreateRoom, 
-  onJoinRoom, 
+export function HomePage({
+  onCreateRoom,
+  onJoinRoom,
   isCreatingRoom = false,
   isJoiningRoom = false,
-  initialRoomCode
+  initialRoomCode,
 }: HomePageProps) {
-  const { adminUser, isLoading: authLoading, isAdmin, signIn, signOut, getIdToken } = useAdminAuth();
+  const {
+    adminUser,
+    isLoading: authLoading,
+    isAdmin,
+    signIn,
+    signOut,
+    getIdToken,
+  } = useAdminAuth();
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState(initialRoomCode || '');
-  const [mode, setMode] = useState<'select' | 'create' | 'join' | 'analytics'>(initialRoomCode ? 'join' : 'select');
+  const [mode, setMode] = useState<'select' | 'create' | 'join' | 'analytics'>(
+    initialRoomCode ? 'join' : 'select'
+  );
   const [isSigningIn, setIsSigningIn] = useState(false);
 
   const handleCreate = () => {
@@ -44,7 +59,7 @@ export function HomePage({
     try {
       await signIn();
     } catch (error) {
-      console.error("Failed to sign in:", error);
+      console.error('Failed to sign in:', error);
     } finally {
       setIsSigningIn(false);
     }
@@ -52,7 +67,12 @@ export function HomePage({
 
   // Show analytics dashboard if admin is logged in and viewing analytics
   if (isAdmin && mode === 'analytics') {
-    return <AnalyticsDashboard onBack={() => setMode('select')} getIdToken={getIdToken} />;
+    return (
+      <AnalyticsDashboard
+        onBack={() => setMode('select')}
+        getIdToken={getIdToken}
+      />
+    );
   }
 
   return (
@@ -63,8 +83,8 @@ export function HomePage({
           <p className="text-gray-600">Estimate together, deliver better</p>
         </div>
 
-        {/* Admin Section */}
-        {!authLoading && (
+        {/* Admin Section - Only show on select mode */}
+        {!authLoading && mode === 'select' && (
           <div className="mb-4">
             {adminUser ? (
               <Card className="mb-4">
@@ -74,12 +94,14 @@ export function HomePage({
                       {adminUser.photoURL && (
                         <img
                           src={adminUser.photoURL}
-                          alt={adminUser.displayName || "Admin"}
+                          alt={adminUser.displayName || 'Admin'}
                           className="w-10 h-10 rounded-full"
                         />
                       )}
                       <div>
-                        <p className="font-medium text-sm">{adminUser.displayName || adminUser.email}</p>
+                        <p className="font-medium text-sm">
+                          {adminUser.displayName || adminUser.email}
+                        </p>
                         <p className="text-xs text-gray-500">Admin</p>
                       </div>
                     </div>
@@ -92,11 +114,7 @@ export function HomePage({
                         <BarChart3 className="size-4 mr-2" />
                         Analytics
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={signOut}
-                      >
+                      <Button variant="outline" size="sm" onClick={signOut}>
                         Sign Out
                       </Button>
                     </div>
@@ -112,8 +130,17 @@ export function HomePage({
                     onClick={handleAdminSignIn}
                     disabled={isSigningIn}
                   >
-                    <Shield className="size-4 mr-2" />
-                    {isSigningIn ? "Signing in..." : "Admin Login"}
+                    {isSigningIn ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                        Signing in...
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="size-4 mr-2" />
+                        Admin Login
+                      </>
+                    )}
                   </Button>
                 </CardContent>
               </Card>
@@ -125,7 +152,9 @@ export function HomePage({
           <Card>
             <CardHeader>
               <CardTitle>Get Started</CardTitle>
-              <CardDescription>Create a new room or join an existing one</CardDescription>
+              <CardDescription>
+                Create a new room or join an existing one
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button
@@ -153,7 +182,9 @@ export function HomePage({
           <Card>
             <CardHeader>
               <CardTitle>Create Room</CardTitle>
-              <CardDescription>Enter your name to create a new planning poker room</CardDescription>
+              <CardDescription>
+                Enter your name to create a new planning poker room
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -196,7 +227,9 @@ export function HomePage({
           <Card>
             <CardHeader>
               <CardTitle>Join Room</CardTitle>
-              <CardDescription>Enter the room code and your name</CardDescription>
+              <CardDescription>
+                Enter the room code and your name
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -220,7 +253,9 @@ export function HomePage({
                 <Button
                   className="flex-1"
                   onClick={handleJoin}
-                  disabled={!playerName.trim() || !roomCode.trim() || isJoiningRoom}
+                  disabled={
+                    !playerName.trim() || !roomCode.trim() || isJoiningRoom
+                  }
                 >
                   {isJoiningRoom ? (
                     <>

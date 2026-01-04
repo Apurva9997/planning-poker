@@ -1,9 +1,9 @@
-import { Check, Eye, EyeOff, LogOut, RotateCcw, Share2 } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent } from "./ui/card";
+import { Check, Eye, EyeOff, LogOut, RotateCcw, Share2 } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent } from './ui/card';
 
 export interface Player {
   id: string;
@@ -27,7 +27,7 @@ interface PlanningRoomProps {
   isVoting?: boolean;
 }
 
-const CARD_VALUES = ["0", "1", "2", "3", "5", "8", "13", "21", "?", "☕"];
+const CARD_VALUES = ['0', '1', '2', '3', '5', '8', '13', '21', '?', '☕'];
 
 export function PlanningRoom({
   roomCode,
@@ -49,10 +49,10 @@ export function PlanningRoom({
       const roomUrl = `${window.location.origin}/room/${roomCode}`;
       await navigator.clipboard.writeText(roomUrl);
       setShareUrlCopied(true);
-      toast.success("Room URL copied!");
+      toast.success('Room URL copied!');
       setTimeout(() => setShareUrlCopied(false), 2000);
     } catch (err) {
-      toast.error("Failed to copy URL");
+      toast.error('Failed to copy URL');
     }
   };
 
@@ -127,7 +127,7 @@ export function PlanningRoom({
                 <Button
                   onClick={onReveal}
                   disabled={revealed || hasVoted === 0 || isRevealing}
-                  variant={allVoted && !revealed ? "default" : "outline"}
+                  variant={allVoted && !revealed ? 'default' : 'outline'}
                   size="sm"
                   className="text-xs sm:text-sm"
                 >
@@ -143,7 +143,7 @@ export function PlanningRoom({
                       ) : (
                         <Eye className="size-4 mr-2" />
                       )}
-                      {revealed ? "Revealed" : "Reveal Cards"}
+                      {revealed ? 'Revealed' : 'Reveal Cards'}
                     </>
                   )}
                 </Button>
@@ -179,12 +179,14 @@ export function PlanningRoom({
               Players
             </h2>
             <div className="flex-1 overflow-y-auto pr-2 -mr-2">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 pb-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 pb-2 p-1">
                 {players.map((player) => (
                   <Card
                     key={player.id}
                     className={`${
-                      player.id === currentPlayer.id ? "ring-2 ring-blue-500" : ""
+                      player.id === currentPlayer.id
+                        ? 'ring-2 ring-blue-500 ring-offset-2'
+                        : ''
                     }`}
                   >
                     <CardContent className="p-3 sm:p-4 text-center">
@@ -204,12 +206,12 @@ export function PlanningRoom({
                             className={`h-16 sm:h-20 flex items-center justify-center rounded-lg text-xl sm:text-2xl transition-all ${
                               player.vote
                                 ? revealed
-                                  ? "bg-blue-500 text-white"
-                                  : "bg-green-500 text-white"
-                                : "bg-gray-200 text-gray-400"
+                                  ? 'bg-blue-500 text-white'
+                                  : 'bg-green-500 text-white'
+                                : 'bg-gray-200 text-gray-400'
                             }`}
                           >
-                            {player.vote ? (revealed ? player.vote : "✓") : "—"}
+                            {player.vote ? (revealed ? player.vote : '✓') : '—'}
                           </div>
                         )}
                       </div>
@@ -235,8 +237,8 @@ export function PlanningRoom({
                   disabled={revealed || currentPlayer.isObserver || isVoting}
                   className={`aspect-[2/3] rounded-lg text-lg sm:text-xl md:text-2xl transition-all ${
                     currentPlayer.vote === value
-                      ? "bg-blue-500 text-white scale-105 shadow-lg"
-                      : "bg-white hover:bg-blue-50 hover:scale-105 shadow"
+                      ? 'bg-blue-500 text-white scale-105 shadow-lg'
+                      : 'bg-white hover:bg-blue-50 hover:scale-105 shadow'
                   } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
                 >
                   {isVoting && currentPlayer.vote === value ? (
